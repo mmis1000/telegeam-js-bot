@@ -67,7 +67,7 @@ function main (input) {
       child.stdout.on('data', con.stdout);
       child.stderr.on('data', con.stderr);
       child.on('exit', function (code, sig) {
-        con.status('exit')
+        con.status('exited')
         con.log('child exit with code ' + code + ' and signal ' + sig)
         // process.exit();
       })
