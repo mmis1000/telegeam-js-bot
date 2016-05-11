@@ -42,6 +42,7 @@ var con = global.con = {
   error: createLogger('error'),
   status: createLogger('status'),
   throw: createLogger('throw', true),
+  exit: createLogger('exit'),
   createNamedLogger: function (language, id) {
     language = language || 'unknown'
     id = id || guidGenerator()
@@ -51,7 +52,8 @@ var con = global.con = {
       log: createLogger('log', false, language, id),
       error: createLogger('error', false, language, id),
       status: createLogger('status', false, language, id),
-      throw: createLogger('throw', true, language, id)
+      throw: createLogger('throw', true, language, id),
+      exit: createLogger('exit', false, language, id),
     }
   }
 }
@@ -92,6 +94,7 @@ function main (input) {
       child.stderr.on('data', myConsole.stderr);
       child.on('exit', function (code, sig) {
         myConsole.status('exited')
+        myConsole.exit({code: code, signal: sig});
         myConsole.log('child exit with code ' + code + ' and signal ' + sig)
         // process.exit();
       })
