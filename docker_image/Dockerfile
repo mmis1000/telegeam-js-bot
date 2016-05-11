@@ -53,6 +53,16 @@ RUN apt-key adv --keyserver hkp://keyserver.ubuntu.com --recv-keys E5267A6C; \
     apt-get install -y php5; \
     apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
+# add golang
+RUN add-apt-repository ppa:ubuntu-lxc/lxd-stable; \
+    apt-get -y update; \
+    apt-get install -y golang; \
+    apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+# add rust lang
+RUN curl -sSf https://static.rust-lang.org/rustup.sh | sh; \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
 # install brainfuck
 RUN npm install -y -g brainless; \
     npm cache clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*

@@ -1,1 +1,1 @@
-{"type": "java", "program": "public class Main { public static void main(String[] args) { System.out.println(\"Hello, World!\"); } }"}
+{"type":"java","program":"public class Main { \n    public static void main(String[] args) { \n        System.out.println(\"Hello, World!\"); \n    } \n}"}

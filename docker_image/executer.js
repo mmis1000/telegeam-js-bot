@@ -11,7 +11,13 @@ rl.on('line', (cmd) => {
   main(cmd)
 });
 
-function createLogger (type, willKill) {
+function guidGenerator() {
+    var S4 = function() {
+       return (((1+Math.random())*0x10000)|0).toString(16).substring(1);
+    };
+    return (S4()+S4()+"-"+S4()+"-"+S4()+"-"+S4()+"-"+S4()+S4()+S4());
+}
+function createLogger (type, willKill, language, id) {
   return function (info) {
     if (info instanceof Buffer) {
       info = info.toString('utf8')
@@ -20,7 +26,9 @@ function createLogger (type, willKill) {
     }
     console.log(JSON.stringify({
       type: type,
-      text: info
+      text: info,
+      language: language,
+      id: id
     }))
     if (willKill) {
       process.exit(-1);
@@ -33,7 +41,19 @@ var con = global.con = {
   log: createLogger('log'),
   error: createLogger('error'),
   status: createLogger('status'),
-  throw: createLogger('throw', true)
+  throw: createLogger('throw', true),
+  createNamedLogger: function (language, id) {
+    language = language || 'unknown'
+    id = id || guidGenerator()
+    return {
+      stdout: createLogger('stdout', false, language, id),
+      stderr: createLogger('stderr', false, language, id),
+      log: createLogger('log', false, language, id),
+      error: createLogger('error', false, language, id),
+      status: createLogger('status', false, language, id),
+      throw: createLogger('throw', true, language, id)
+    }
+  }
 }
 
 function main (input) {
@@ -52,23 +72,27 @@ function main (input) {
     }
   }
   
+  var myConsole = con.createNamedLogger(parsedCommnad.type);
+  
   var folder = path.resolve('/tmp', 'runner-' + Date.now())
   fs.mkdirSync(folder);
-  // con.log(parsedCommnad);
-  
-  var runner = require('./runner/' + parsedCommnad.type)
-  
-  con.status('setting up')
+  // myConsole.log(parsedCommnad);
+  try {
+    var runner = require('./runner/' + parsedCommnad.type)
+  } catch (e) {
+    return myConsole.error('cannot find runner for ' + parsedCommnad.type + ', aborted.')
+  }
+  myConsole.status('setting up')
   runner.setup(folder, parsedCommnad.program, function (file_path) {
-    // con.log('setup finished');
-    con.status('executing')
+    // myConsole.log('setup finished');
+    myConsole.status('executing')
     runner.execute(file_path, function (child) {
-      con.log('starting process with file ' + file_path);
-      child.stdout.on('data', con.stdout);
-      child.stderr.on('data', con.stderr);
+      myConsole.log('starting process with file ' + file_path);
+      child.stdout.on('data', myConsole.stdout);
+      child.stderr.on('data', myConsole.stderr);
       child.on('exit', function (code, sig) {
-        con.status('exited')
-        con.log('child exit with code ' + code + ' and signal ' + sig)
+        myConsole.status('exited')
+        myConsole.log('child exit with code ' + code + ' and signal ' + sig)
         // process.exit();
       })
     })
