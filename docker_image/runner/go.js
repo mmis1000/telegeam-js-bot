@@ -17,7 +17,7 @@ module.exports = {
     cb(binPath);
   },
   execute: function (file_path, cb) {
-    var child = child_process.spawn(file_path);
+    var child = child_process.spawn(file_path, [], {cwd: path.dirname(file_path)});
     cb(child);
   }
 }

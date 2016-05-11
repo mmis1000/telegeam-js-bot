@@ -9,7 +9,7 @@ module.exports = {
     cb(filePath);
   },
   execute: function (file_path, cb) {
-    var child = child_process.spawn('coffee', [file_path]);
+    var child = child_process.spawn('coffee', [file_path], {cwd: path.dirname(file_path)});
     cb(child);
   }
 }
