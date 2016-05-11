@@ -12,7 +12,7 @@ fs.readdir('./test', function (err, names) {
     })
     JSONs = JSONs.join('')
     
-    var child = child_process.spawn('docker', ['run', '-i', '--rm', 'mmis1000/lang-runner:0.0.1', 'node', 'executer.js'])
+    var child = child_process.spawn('docker', ['run', '-i', '--rm', '-u=ubuntu', 'mmis1000/lang-runner:0.0.1', 'node', 'executer.js'])
     child.stdout.pipe(process.stdout);
     child.stderr.pipe(process.stderr);
     child.stdin.write(JSONs);

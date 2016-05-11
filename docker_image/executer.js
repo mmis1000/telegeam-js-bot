@@ -74,7 +74,7 @@ function main (input) {
   
   var myConsole = con.createNamedLogger(parsedCommnad.type);
   
-  var folder = path.resolve('/tmp', 'runner-' + Date.now())
+  var folder = path.resolve(process.env.HOME, 'runner-' + Date.now())
   fs.mkdirSync(folder);
   // myConsole.log(parsedCommnad);
   try {

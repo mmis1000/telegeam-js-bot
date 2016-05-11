@@ -13,11 +13,15 @@ module.exports = {
     } catch (e) {
       con.throw(e.stack || e.toString());
     }
-    fs.chmodSync(binPath, 777)
+    fs.chmodSync(binPath, 0777)
     cb(binPath);
   },
   execute: function (file_path, cb) {
-    var child = child_process.spawn(file_path, [], {cwd: path.dirname(file_path)});
+    try {
+      var child = child_process.spawn(file_path, [], {cwd: path.dirname(file_path)});
+    } catch (e) {
+      return con.error(e.stack || e.toString());
+    }
     cb(child);
   }
 }
