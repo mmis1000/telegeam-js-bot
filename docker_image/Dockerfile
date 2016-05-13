@@ -63,6 +63,26 @@ RUN add-apt-repository ppa:ubuntu-lxc/lxd-stable; \
 RUN curl -sSf https://static.rust-lang.org/rustup.sh | sh; \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
+# add clisp
+RUN apt-get -y update; \
+    apt-get install -y clisp; \
+    apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+# add lua
+RUN apt-get -y update; \
+    apt-get install -y lua5.3*; \
+    apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+# add csharp and probably other .net based language
+RUN apt-get -y update; \
+    apt-get install -y mono-xbuild mono-mcs mono-devel; \
+    apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+# add ruby
+RUN apt-get -y update; \
+    apt-get install -y ruby; \
+    apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
 # install brainfuck
 RUN npm install -y -g brainless; \
     npm cache clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
