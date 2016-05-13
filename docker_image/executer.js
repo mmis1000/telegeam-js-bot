@@ -98,6 +98,6 @@ function main (input) {
         myConsole.log('child exit with code ' + code + ' and signal ' + sig)
         // process.exit();
       })
-    })
-  })
+    }, myConsole)
+  }, myConsole)
 }
