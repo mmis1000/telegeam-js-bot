@@ -24,7 +24,7 @@ RUN apt-get update -y; \
                        python2.7; \
     apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# install node.js  
+# install node.js
 RUN apt-get update -y; \
     apt-get install -y nodejs; \
     apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
@@ -36,7 +36,7 @@ RUN ln -s /usr/bin/nodejs /usr/bin/node
 RUN apt-get update -y; \
     apt-get install -y npm; \
     apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
-                      
+
 # install java
 RUN add-apt-repository ppa:webupd8team/java; \
     apt-get -y update; \
@@ -57,6 +57,10 @@ RUN apt-key adv --keyserver hkp://keyserver.ubuntu.com --recv-keys E5267A6C; \
 RUN add-apt-repository ppa:ubuntu-lxc/lxd-stable; \
     apt-get -y update; \
     apt-get install -y golang; \
+    apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+# install ruby
+RUN apt-get install ruby2.3; \
     apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # add rust lang
