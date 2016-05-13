@@ -60,7 +60,7 @@ RUN add-apt-repository ppa:ubuntu-lxc/lxd-stable; \
     apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # install ruby
-RUN apt-get install ruby2.3; \
+RUN apt-get install -y ruby2.3; \
     apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # add rust lang
