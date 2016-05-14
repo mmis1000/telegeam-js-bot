@@ -7,14 +7,19 @@ module.exports = {
     var filePath = path.resolve(work_dir, 'main.cpp');
     var binPath = path.resolve(work_dir, 'main');
     fs.writeFileSync(filePath, file_content);
-    // console.log('g++', [filePath, '-o', binPath]);
-    try {
-      child_process.execFileSync('g++', [filePath, '-o', binPath], {stdio: 'pipe'})
-    } catch (e) {
-      return con.error(e.stack || e.toString());
-    }
-    fs.chmodSync(binPath, 0777)
-    cb(binPath);
+    
+    var child = child_process.spawn('g++', [filePath, '-o', binPath], {stdio: 'pipe', cwd: path.dirname(filePath)});
+    child.stdout.on('data', con.log)
+    child.stderr.on('data', con.error)
+    child.on('exit', function (code, sig) {
+      if (code !== 0 || sig != null) {
+        con.exit({code: code, signal: sig});
+        con.log('compiler exit with code ' + code + ' and signal ' + sig)
+        return
+      }
+      fs.chmodSync(binPath, 0777)
+      cb(binPath)
+    })
   },
   execute: function (file_path, cb, con) {
     try {
