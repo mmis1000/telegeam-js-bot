@@ -83,6 +83,11 @@ RUN apt-get -y update; \
     apt-get install -y ruby; \
     apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
+# add vb
+RUN apt-get -y update; \
+    apt-get install -y mono-vbnc; \
+    apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
 # install brainfuck
 RUN npm install -y -g brainless; \
     npm cache clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*

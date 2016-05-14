@@ -1,0 +1,1 @@
+{"type":"vb","program":"Class HelloWorld\n    Shared Sub Main\n        System.Console.WriteLine (\"Hello, world!\")\n    End Sub\nEnd Class "}
