@@ -1,1 +1,1 @@
-{"type":"c","program":"#include<stdio.h>\n\nmain()\n{\n    printf(\"Hello, World!\\n\");\n}"}
+{"type":"c","program":"#include<stdio.h>\n\nint main()\n{\n    printf(\"Hello, World!\\n\");\n    return 0;\n}"}
