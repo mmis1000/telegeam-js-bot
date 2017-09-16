@@ -97,7 +97,7 @@ RUN dpkg --add-architecture i386 \
 RUN curl -SL 'https://raw.githubusercontent.com/Winetricks/winetricks/master/src/winetricks' -o /usr/local/bin/winetricks \
 	&& chmod +x /usr/local/bin/winetricks
 
-# username
+# Username
 ENV USER_NAME debian
 
 # Replace shell with bash so we can source files
@@ -126,7 +126,7 @@ RUN curl https://raw.githubusercontent.com/creationix/nvm/v0.20.0/install.sh | b
 ENV NODE_PATH $NVM_DIR/versions/v$NODE_VERSION/lib/node_modules
 ENV PATH      $NVM_DIR/versions/v$NODE_VERSION/bin:$PATH
 
-# switch back for other lib
+# Switch back for other lib
 USER root
 
 # Replace shell back
@@ -140,9 +140,12 @@ RUN npm install -y -g brainless; \
 RUN npm install -y -g coffee-script; \
     npm cache clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# remove unused
-RUN apt-get purge -y software-properties-common; \
-    apt-get autoclean -y
+# Install gnu time for measurement
+RUN apt-get install -y time
+
+# Remove unused files
+# RUN apt-get purge -y software-properties-common; \
+#     apt-get autoclean -y
 
 # Set the locale
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y locales
@@ -155,9 +158,9 @@ ENV LC_ALL en_US.UTF-8
 WORKDIR /home/$USER_NAME
 USER $USER_NAME
 
-#setup wine
+# Setup wine
 RUN winetricks > /dev/null
 
-# clone slave files
+# Clone slave files
 COPY executer.js executer.js
 COPY runner/*.js runner/
