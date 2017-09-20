@@ -13,5 +13,12 @@ module.exports = {
     // fs.createReadStream(file_path).pipe(child.stdin);
     
     cb(child);
+  },
+  getExecuteArgs: function (file_path, cb) {
+    return {
+      path: "wine",
+      args: ['cmd', '/c', path.basename(file_path)],
+      opts: {}
+    }
   }
 }

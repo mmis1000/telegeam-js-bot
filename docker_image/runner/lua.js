@@ -14,5 +14,12 @@ module.exports = {
     var child = child_process.spawn('lua5.3', [path.basename(file_path)], {cwd: path.dirname(file_path)});
     child.stdin.end();
     cb(child);
+  },
+  getExecuteArgs: function (file_path, cb) {
+    return {
+      path: 'lua5.3',
+      args: [path.basename(file_path)],
+      opts: {}
+    }
   }
 }

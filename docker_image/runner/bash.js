@@ -11,5 +11,12 @@ module.exports = {
   execute: function (file_path, cb) {
     var child = child_process.spawn('bash', [file_path], {cwd: path.dirname(file_path)});
     cb(child);
+  },
+  getExecuteArgs: function (file_path, cb) {
+    return {
+      path: 'bash',
+      args: [file_path],
+      opts: {}
+    }
   }
 }

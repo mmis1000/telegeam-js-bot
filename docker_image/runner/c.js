@@ -13,8 +13,8 @@ module.exports = {
     child.stderr.on('data', con.error)
     child.on('exit', function (code, sig) {
       if (code !== 0 || sig != null) {
+        con.log('compiler exit with code ' + code + ' and signal ' + sig);
         con.exit({code: code, signal: sig});
-        con.log('compiler exit with code ' + code + ' and signal ' + sig)
         return
       }
       fs.chmodSync(binPath, 0777)
@@ -28,5 +28,12 @@ module.exports = {
       return con.error(e.stack || e.toString());
     }
     cb(child);
+  },
+  getExecuteArgs: function (file_path, cb) {
+    return {
+      path: file_path,
+      args: [],
+      opts: {}
+    }
   }
 }

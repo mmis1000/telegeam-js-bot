@@ -14,5 +14,12 @@ module.exports = {
     var child = child_process.spawn('clisp', [path.basename(file_path)], {cwd: path.dirname(file_path)});
     child.stdin.end();
     cb(child);
+  },
+  getExecuteArgs: function (file_path, cb) {
+    return {
+      path: 'clisp',
+      args: [path.basename(file_path)],
+      opts: {}
+    }
   }
 }
