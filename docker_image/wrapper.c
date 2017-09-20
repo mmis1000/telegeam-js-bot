@@ -34,13 +34,13 @@ int main( int argc, char *argv[] )
     uid_t processUid;
     gid_t processGid;
     
-    if (argc >= 4 ) {
-        printf("The argument supplied is ");
-        for (int i = 0; i < argc; i++) {
-            printf("%s ", argv[i]);
-        }
-        printf("\n");
-    } 
+    // if (argc >= 4 ) {
+    //     printf("The argument supplied is ");
+    //     for (int i = 0; i < argc; i++) {
+    //         printf("%s ", argv[i]);
+    //     }
+    //     printf("\n");
+    // } 
    
     if (argc < 4) {
         printf("There should at lease 3 arguments\n");
@@ -64,11 +64,11 @@ int main( int argc, char *argv[] )
     int uid = getUidFromUsername(argv[2]);
     int gid = getGidFromUsername(argv[2]);
     
-    printf("uid of user %s is %d\n", argv[2], uid);
-    printf("gid of user %s is %d\n", argv[2], gid);
+    // printf("uid of user %s is %d\n", argv[2], uid);
+    // printf("gid of user %s is %d\n", argv[2], gid);
     
-    printf("uid of current process is %d\n", getuid());
-    printf("gid of current process is %d\n", getgid());
+    // printf("uid of current process is %d\n", getuid());
+    // printf("gid of current process is %d\n", getgid());
     
     int result;
     
@@ -84,10 +84,10 @@ int main( int argc, char *argv[] )
         return 1;
     }
     
-    printf("uid of current process is %d\n", getuid());
-    printf("gid of current process is %d\n", getgid());
+    // printf("uid of current process is %d\n", getuid());
+    // printf("gid of current process is %d\n", getgid());
     
-    char **newArgv= malloc(argc - 4 + 2);
+    char **newArgv = malloc((argc - 4 + 2) * sizeof(char*));
     
     for (int i = 3; i < argc; i++) {
         newArgv[i - 3] = argv[i];
