@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <pwd.h>
 #include <grp.h>
+#include <errno.h>
 
 int getGidFromUsername(const char *name)
 {
@@ -63,11 +64,11 @@ int main( int argc, char *argv[] )
     int uid = getUidFromUsername(argv[2]);
     int gid = getGidFromUsername(argv[2]);
     
-    // printf("uid of user %s is %d\n", argv[2], uid);
-    // printf("gid of user %s is %d\n", argv[2], gid);
+    printf("uid of user %s is %d\n", argv[2], uid);
+    printf("gid of user %s is %d\n", argv[2], gid);
     
-    // printf("uid of current process is %d\n", getuid());
-    // printf("gid of current process is %d\n", getgid());
+    printf("uid of current process is %d\n", getuid());
+    printf("gid of current process is %d\n", getgid());
     
     int result;
     
@@ -83,8 +84,8 @@ int main( int argc, char *argv[] )
         return 1;
     }
     
-    // printf("uid of current process is %d\n", getuid());
-    // printf("gid of current process is %d\n", getgid());
+    printf("uid of current process is %d\n", getuid());
+    printf("gid of current process is %d\n", getgid());
     
     char **newArgv= malloc(argc - 4 + 2);
     
@@ -92,9 +93,50 @@ int main( int argc, char *argv[] )
         newArgv[i - 3] = argv[i];
     }
     
-    argv[argc - 3] = NULL;
+    newArgv[argc - 3] = NULL;
     
-    execvp(argv[3], argv);
+    printf("New argv is ");
+    for (int i = 0; i < argc - 2; i++) {
+        printf("%s ", newArgv[i]);
+    }
+    printf("\n");
+    
+    if (execvp(argv[3], newArgv) == -1) {
+        switch (errno) {
+            case E2BIG:
+                fprintf(stderr, "E2BIG");
+            case EACCES:
+                fprintf(stderr, "EACCES");
+            case EFAULT:
+                fprintf(stderr, "EFAULT");
+            case EINVAL:
+                fprintf(stderr, "EINVAL");
+            case EIO:
+                fprintf(stderr, "EIO");
+            case EISDIR:
+                fprintf(stderr, "EISDIR");
+            case ELIBBAD:
+                fprintf(stderr, "ELIBBAD");
+            case ELOOP:
+                fprintf(stderr, "ELOOP");
+            case EMFILE:
+                fprintf(stderr, "EMFILE");
+            case ENAMETOOLONG:
+                fprintf(stderr, "ENAMETOOLONG");
+            case ENOENT:
+                fprintf(stderr, "ENOENT");
+            case ENOEXEC:
+                fprintf(stderr, "ENOEXEC");
+            case ENOTDIR:
+                fprintf(stderr, "ENOTDIR");
+            case EPERM:
+                fprintf(stderr, "EPERM");
+            case ETXTBSY:
+                fprintf(stderr, "ETXTBSY");
+            default:
+                fprintf(stderr, "unknown error");
+        }
+    }
     
     return -1;
 }

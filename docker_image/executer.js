@@ -55,6 +55,45 @@ function RunnerInfo() {
   this.signals = [];
   this.process = null;
   this.console = null;
+  this.pidFilePath = null;
+  this._pid = null;
+  
+  var self = this;
+  this.waitAlive = function wait(cb) {
+    if (!self.pidFilePath) {
+      // self.console.log('self.pidFilePath not set')
+      return setTimeout(wait.bind(null, cb), 500);
+    }
+    
+    fs.stat(self.pidFilePath, function (err, res) {
+      if (err || !res) {
+        // self.console.log(self.pidFilePath + ' not found')
+        return setTimeout(wait.bind(null, cb), 500);
+      }
+      
+      cb();
+    })
+  }
+  
+  Object.defineProperty(this, 'pid', {
+    get: function () {
+      if (this._pid) {
+        return this._pid
+      }
+      
+      if (!this.pidFilePath) {
+        return null;
+      }
+      
+      try {
+        var pid = parseInt(fs.readFileSync(this.pidFilePath), 10);
+        this._pid = pid
+        return pid;
+      } catch (e) {
+        return null;
+      }
+    }
+  })
 }
 
 var con = global.con = new EventEmitter();
@@ -141,9 +180,17 @@ function main (input) {
 }
 
 function spawn(parsedCommnad, con) {
+  // var timeResultPath = process.env.HOME + '/time_results/' + parsedCommnad.id + '.txt';
+  // var pidFilePath = process.env.HOME + '/pids/' + parsedCommnad.id + '.pid';
+  
+  var timeResultPath = '/app/time_results/' + parsedCommnad.id + '.txt';
+  var pidFilePath = '/app/pids/' + parsedCommnad.id + '.pid';
+  
   var runnerInfo = new RunnerInfo();
   runnerInfos.set(parsedCommnad.id, runnerInfo);
-  runnerInfos.console = con;
+  runnerInfo.console = con;
+  runnerInfo.pidFilePath = pidFilePath;
+  
   
   function onExitOrThrow() {
     runnerInfos.delete(runnerInfo);
@@ -158,7 +205,13 @@ function spawn(parsedCommnad, con) {
     runnerInfo.stdins.push(parsedCommnad.stdin)
   }
   
-  var folder = path.resolve(process.env.HOME, 'runner-' + Date.now())
+  if (parsedCommnad.user) {
+    var home = "/home/" + parsedCommnad.user + '/';
+  } else {
+    var home = "/root/"
+  }
+  
+  var folder = path.resolve(home, 'runner-' + Date.now())
   fs.mkdirSync(folder);
   
   // myConsole.log(parsedCommnad);
@@ -180,10 +233,21 @@ function spawn(parsedCommnad, con) {
       var oldOpts = temp.opts || {};
       
       var timeBinPath = '/usr/bin/time';
-      var newArgs = ['--verbose', '-o', process.env.HOME + '/time_result.txt', oldPath].concat(oldArgs);
+      var newArgs = [
+        '--verbose', 
+        '-o', timeResultPath, 
+        '/app/wrapper',
+        pidFilePath,
+        parsedCommnad.user || 'root',
+        oldPath
+      ].concat(oldArgs);
+      
       var newOpts = Object.assign({}, oldOpts, {
-        cwd: path.dirname(file_path)
-      })
+        cwd: path.dirname(file_path),
+        env: Object.assign({}, process.env, {
+          HOME: home
+        })
+      });
       
       try {
         var child = child_process.spawn(timeBinPath, newArgs, newOpts);
@@ -200,10 +264,14 @@ function spawn(parsedCommnad, con) {
       while (runnerInfo.stdins.length > 0) {
         child.stdin.write(runnerInfo.stdins.shift());
       }
-      
-      while (runnerInfo.signals.length > 0) {
-        child.kill(runnerInfo.signals.shift());
-      }
+        
+      runnerInfo.waitAlive(function () {
+        while (runnerInfo.signals.length > 0) {
+          try {
+            process.kill(runnerInfo.pid, runnerInfo.signals.shift());
+          } catch (e) {}
+        }
+      })
       
       con.log('starting process with file ' + file_path);
       child.stdout.on('data', con.stdout);
@@ -212,7 +280,7 @@ function spawn(parsedCommnad, con) {
       child.on('exit', function (code, sig) {
         con.status('exited');
         
-        fs.readFile(process.env.HOME + '/time_result.txt', 'utf8', function (err, res) {
+        fs.readFile(timeResultPath, 'utf8', function (err, res) {
           var time = [];
           
           if (err) {
@@ -280,19 +348,12 @@ function kill(parsedCommnad, con) {
     parsedCommnad.signal = 'SIGTERM';
   }
   
-  if (runnerInfo.process) {
-    runnerInfo.process.kill(parsedCommnad.signal)
-  } else {
-    runnerInfo.signals.push(parsedCommnad.signal);
-  }
+  runnerInfo.signals.push(parsedCommnad.signal);
   
-  try {
-    if (runnerInfo.process) {
-      while (runnerInfo.stdins.length > 0) {
-        runnerInfo.process.stdin.write(runnerInfo.stdins.shift());
-      }
-    }
-  } catch (err) {
-    con.error(err.stack);
-  }
+  runnerInfo.waitAlive(function (argument) {
+    con.log('pid is ' + runnerInfo.pid);
+    try {
+      process.kill(runnerInfo.pid, runnerInfo.signals.shift());
+    } catch (e) {}
+  })
 }

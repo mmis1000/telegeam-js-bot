@@ -14,7 +14,7 @@ fs.readdir('./test', function (err, names) {
     
     console.log('test using image ' + require("../config.js").image_name);
     
-    var child = child_process.spawn('docker', ['run', '-i', '--rm', require("../config.js").image_name, 'node', 'executer.js'])
+    var child = child_process.spawn('docker', ['run', '-i', '--rm', require("../config.js").image_name, 'node', '/app/executer.js'])
     child.stdout.pipe(process.stdout);
     child.stderr.pipe(process.stderr);
     child.stdin.write(JSONs);

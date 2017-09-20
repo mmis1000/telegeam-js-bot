@@ -113,7 +113,7 @@ RUN addgroup $USER_NAME; \
 USER $USER_NAME
 
 ENV NVM_DIR /home/$USER_NAME/.nvm
-ENV NODE_VERSION 4.4.4
+ENV NODE_VERSION 8.5.0
 
 # Install nvm with node and npm
 RUN curl https://raw.githubusercontent.com/creationix/nvm/v0.20.0/install.sh | bash \
@@ -129,26 +129,33 @@ ENV PATH      $NVM_DIR/versions/v$NODE_VERSION/bin:$PATH
 # Switch back for other lib
 USER root
 
+# Protect this path from being tampered
+RUN chown -R root:root $NVM_DIR/versions/v$NODE_VERSION/
+
 # Replace shell back
 RUN rm /bin/sh && mv /bin/sh_backup /bin/sh
 
 # 19. install brainfuck
 RUN npm install -y -g brainless; \
-    npm cache clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+    npm cache clean --force && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # 20. install coffee script
 RUN npm install -y -g coffee-script; \
-    npm cache clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+    npm cache clean --force && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Install gnu time for measurement
-RUN apt-get install -y time
+RUN apt-get update \
+    && apt-get install -y time \
+    && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Remove unused files
 # RUN apt-get purge -y software-properties-common; \
 #     apt-get autoclean -y
 
 # Set the locale
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y locales
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y locales \
+    && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 RUN sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
     locale-gen
 ENV LANG en_US.UTF-8
@@ -161,6 +168,14 @@ USER $USER_NAME
 # Setup wine
 RUN winetricks > /dev/null
 
+USER root
+WORKDIR /app/
+RUN mkdir app
+
 # Clone slave files
 COPY executer.js executer.js
 COPY runner/*.js runner/
+COPY wrapper.c wrapper.c
+RUN gcc -std=c11 -o wrapper wrapper.c && \
+    mkdir pids && \
+    mkdir time_results
