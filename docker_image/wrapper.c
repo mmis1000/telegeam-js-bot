@@ -32,14 +32,6 @@ int main(int argc, char *argv[])
     FILE *pidFile;
     uid_t processUid;
     gid_t processGid;
-    
-    // if (argc >= 4 ) {
-    //     printf("The argument supplied is ");
-    //     for (int i = 0; i < argc; i++) {
-    //         printf("%s ", argv[i]);
-    //     }
-    //     printf("\n");
-    // } 
    
     if (argc < 4) {
         printf("There should at lease 3 arguments\n");
@@ -63,12 +55,6 @@ int main(int argc, char *argv[])
     unsigned long uid = getUidFromUsername(argv[2]);
     unsigned long gid = getGidFromUsername(argv[2]);
     
-    // printf("uid of user %s is %lu\n", argv[2], uid);
-    // printf("gid of user %s is %lu\n", argv[2], gid);
-    
-    // printf("uid of current process is %lu\n", getuid());
-    // printf("gid of current process is %lu\n", getgid());
-    
     int result;
     
     result = setgid(gid);
@@ -83,9 +69,6 @@ int main(int argc, char *argv[])
         return 1;
     }
     
-    // printf("uid of current process is %lu\n", getuid());
-    // printf("gid of current process is %lu\n", getgid());
-    
     char **newArgv = malloc((argc - 4 + 2) * sizeof(*newArgv));
     
     for (int i = 3; i < argc; i++) {
@@ -93,12 +76,6 @@ int main(int argc, char *argv[])
     }
     
     newArgv[argc - 3] = NULL;
-    
-    // printf("New argv is ");
-    // for (int i = 0; i < argc - 2; i++) {
-    //     printf("%s ", newArgv[i]);
-    // }
-    // printf("\n");
     
     if (execvp(argv[3], newArgv) == -1) {
         perror("exec error");
