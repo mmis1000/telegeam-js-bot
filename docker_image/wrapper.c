@@ -3,10 +3,9 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <pwd.h>
-#include <grp.h>
-#include <errno.h>
+#include <string.h>   // for strerror()
 
-int getGidFromUsername(const char *name)
+unsigned long getGidFromUsername(const char *name)
 {
     struct passwd *pwd = getpwnam(name); /* don't free, see getgrnam() for details */
     
@@ -14,10 +13,10 @@ int getGidFromUsername(const char *name)
         return -1;
     }
     
-    return (int)(pwd->pw_gid);
+    return (unsigned long)(pwd->pw_gid);
 }
 
-int getUidFromUsername(const char *name)
+unsigned long getUidFromUsername(const char *name)
 {
     struct passwd *pwd = getpwnam(name); /* don't free, see getpwnam() for details */
     
@@ -25,10 +24,10 @@ int getUidFromUsername(const char *name)
         return -1;
     } 
     
-    return (int)(pwd->pw_uid);
+    return (unsigned long)(pwd->pw_uid);
 }
 
-int main( int argc, char *argv[] )
+int main(int argc, char *argv[])
 {
     FILE *pidFile;
     uid_t processUid;
@@ -44,7 +43,7 @@ int main( int argc, char *argv[] )
    
     if (argc < 4) {
         printf("There should at lease 3 arguments\n");
-        printf(" Usage: wrapper <pid file path> <set user> <program path> [args..]\n");
+        printf("Usage: wrapper <pid file path> <set user> <program path> [args..]\n");
         return 1;
     }
    
@@ -52,23 +51,23 @@ int main( int argc, char *argv[] )
     pidFile = fopen(argv[1], "w");
     
     if (NULL == pidFile) {
-        printf( "open failure" );
+        printf("Open pid file failure");
         return 1;
     }
     
-    int pid = (int)(getpid());
-    fprintf(pidFile, "%d\n", pid);
+    unsigned long pid = (unsigned long)(getpid());
+    fprintf(pidFile, "%lu\n", pid);
     fclose(pidFile);
     // set uid
     
-    int uid = getUidFromUsername(argv[2]);
-    int gid = getGidFromUsername(argv[2]);
+    unsigned long uid = getUidFromUsername(argv[2]);
+    unsigned long gid = getGidFromUsername(argv[2]);
     
-    // printf("uid of user %s is %d\n", argv[2], uid);
-    // printf("gid of user %s is %d\n", argv[2], gid);
+    // printf("uid of user %s is %lu\n", argv[2], uid);
+    // printf("gid of user %s is %lu\n", argv[2], gid);
     
-    // printf("uid of current process is %d\n", getuid());
-    // printf("gid of current process is %d\n", getgid());
+    // printf("uid of current process is %lu\n", getuid());
+    // printf("gid of current process is %lu\n", getgid());
     
     int result;
     
@@ -84,10 +83,10 @@ int main( int argc, char *argv[] )
         return 1;
     }
     
-    // printf("uid of current process is %d\n", getuid());
-    // printf("gid of current process is %d\n", getgid());
+    // printf("uid of current process is %lu\n", getuid());
+    // printf("gid of current process is %lu\n", getgid());
     
-    char **newArgv = malloc((argc - 4 + 2) * sizeof(char*));
+    char **newArgv = malloc((argc - 4 + 2) * sizeof(*newArgv));
     
     for (int i = 3; i < argc; i++) {
         newArgv[i - 3] = argv[i];
@@ -95,48 +94,15 @@ int main( int argc, char *argv[] )
     
     newArgv[argc - 3] = NULL;
     
-    printf("New argv is ");
-    for (int i = 0; i < argc - 2; i++) {
-        printf("%s ", newArgv[i]);
-    }
-    printf("\n");
+    // printf("New argv is ");
+    // for (int i = 0; i < argc - 2; i++) {
+    //     printf("%s ", newArgv[i]);
+    // }
+    // printf("\n");
     
     if (execvp(argv[3], newArgv) == -1) {
-        switch (errno) {
-            case E2BIG:
-                fprintf(stderr, "E2BIG");
-            case EACCES:
-                fprintf(stderr, "EACCES");
-            case EFAULT:
-                fprintf(stderr, "EFAULT");
-            case EINVAL:
-                fprintf(stderr, "EINVAL");
-            case EIO:
-                fprintf(stderr, "EIO");
-            case EISDIR:
-                fprintf(stderr, "EISDIR");
-            case ELIBBAD:
-                fprintf(stderr, "ELIBBAD");
-            case ELOOP:
-                fprintf(stderr, "ELOOP");
-            case EMFILE:
-                fprintf(stderr, "EMFILE");
-            case ENAMETOOLONG:
-                fprintf(stderr, "ENAMETOOLONG");
-            case ENOENT:
-                fprintf(stderr, "ENOENT");
-            case ENOEXEC:
-                fprintf(stderr, "ENOEXEC");
-            case ENOTDIR:
-                fprintf(stderr, "ENOTDIR");
-            case EPERM:
-                fprintf(stderr, "EPERM");
-            case ETXTBSY:
-                fprintf(stderr, "ETXTBSY");
-            default:
-                fprintf(stderr, "unknown error");
-        }
+        perror("exec error");
     }
     
-    return -1;
+    return 1;
 }
