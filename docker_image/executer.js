@@ -243,7 +243,7 @@ function spawn(parsedCommnad, con) {
         '-o', timeResultPath, 
         '--user', parsedCommnad.user || 'root',
         '--pid-file', pidFilePath,
-        '--cap-drop', 'cap_sys_admin,cap_setpcap',
+        '--cap-drop', 'cap_sys_admin,cap_setpcap,cap_setfcap',
         // '/app/wrapper',
         // pidFilePath,
         // parsedCommnad.user || 'root',
