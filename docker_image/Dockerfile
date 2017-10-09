@@ -144,9 +144,9 @@ RUN npm install -y -g coffee-script; \
     npm cache clean --force && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Install gnu time for measurement
-RUN apt-get update \
-    && apt-get install -y time \
-    && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+# RUN apt-get update \
+#     && apt-get install -y time \
+#     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Remove unused files
 # RUN apt-get purge -y software-properties-common; \
@@ -172,10 +172,25 @@ USER root
 WORKDIR /app/
 RUN mkdir app
 
+# install my own time
+RUN apt-get update \
+    && apt-get install -y automake texinfo git libcap-dev \
+    && git clone https://github.com/mmis1000/gnu_time.git \
+    && cd gnu_time \
+    && git checkout f41994413ae6f5c148d8a2c4ed304587b0fac204 \
+    && ./bootstrap \
+    && ./configure \
+    && make \
+    && cp time ../time \
+    && cd ../ \
+    && rm -rf gnu_time \
+    && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+    
+
 # Clone slave files
 COPY executer.js executer.js
 COPY runner/*.js runner/
-COPY wrapper.c wrapper.c
-RUN gcc -std=c11 -o wrapper wrapper.c && \
-    mkdir pids && \
+# COPY wrapper.c wrapper.c
+# RUN gcc -O3 -std=c11 -o wrapper wrapper.c && \
+RUN mkdir pids && \
     mkdir time_results

@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const child_process = require("child_process");
 const EventEmitter = require("events").EventEmitter;
+const canMountProc = !!child_process.execFileSync('capsh', ['--print'], {encoding: 'utf8'}).match('cap_sys_admin');
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -57,9 +58,12 @@ function RunnerInfo() {
   this.console = null;
   this.pidFilePath = null;
   this._pid = null;
+  this.exited = false;
   
   var self = this;
   this.waitAlive = function wait(cb) {
+    if (self.exited) return;
+    
     if (!self.pidFilePath) {
       // self.console.log('self.pidFilePath not set')
       return setTimeout(wait.bind(null, cb), 500);
@@ -134,7 +138,8 @@ function main (input) {
   try {
     var parsedCommnad = JSON.parse(input);
   } catch (err) {
-    con.error('bad encoding: ' + err.stack)
+    con.error('bad encoding: ' + err.stack);
+    return;
   }
   
   if (parsedCommnad.id == null) {
@@ -232,15 +237,24 @@ function spawn(parsedCommnad, con) {
       var oldArgs = temp.args || [];
       var oldOpts = temp.opts || {};
       
-      var timeBinPath = '/usr/bin/time';
+      var timeBinPath = '/app/time';
       var newArgs = [
         '--verbose', 
         '-o', timeResultPath, 
-        '/app/wrapper',
-        pidFilePath,
-        parsedCommnad.user || 'root',
+        '--user', parsedCommnad.user || 'root',
+        '--pid-file', pidFilePath,
+        '--cap-drop', 'cap_sys_admin,cap_setpcap',
+        // '/app/wrapper',
+        // pidFilePath,
+        // parsedCommnad.user || 'root',
         oldPath
-      ].concat(oldArgs);
+      ]
+      
+      if (canMountProc) {
+        newArgs.unshift('--pid-namespace');
+      }
+      
+      newArgs = newArgs.concat(oldArgs);
       
       var newOpts = Object.assign({}, oldOpts, {
         cwd: path.dirname(file_path),
@@ -248,6 +262,8 @@ function spawn(parsedCommnad, con) {
           HOME: home
         })
       });
+      
+      con.log('executing ' + timeBinPath + ' ' + newArgs.join(' '));
       
       try {
         var child = child_process.spawn(timeBinPath, newArgs, newOpts);
@@ -278,6 +294,8 @@ function spawn(parsedCommnad, con) {
       child.stderr.on('data', con.stderr);
       
       child.on('exit', function (code, sig) {
+        runnerInfo.exited = true;
+        
         con.status('exited');
         
         fs.readFile(timeResultPath, 'utf8', function (err, res) {
