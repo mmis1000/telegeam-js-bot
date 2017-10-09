@@ -24,10 +24,6 @@ module.exports = {
       cb(binPath)
     })
   },
-  execute: function (file_path, cb, con) {
-    var child = child_process.spawn('java', [path.basename(file_path)], {cwd: path.dirname(file_path)});
-    cb(child);
-  },
   getExecuteArgs: function (file_path, cb) {
     return {
       path: 'java',

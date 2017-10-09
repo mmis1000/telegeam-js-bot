@@ -23,14 +23,6 @@ module.exports = {
     // fs.chmodSync(binPath, 0777)
     // cb(binPath);
   },
-  execute: function (file_path, cb, con) {
-    try {
-      var child = child_process.spawn('mono', [file_path], {cwd: path.dirname(file_path)});
-    } catch (e) {
-      return con.error(e.stack || e.toString());
-    }
-    cb(child);
-  },
   getExecuteArgs: function (file_path, cb) {
     return {
       path: 'mono',

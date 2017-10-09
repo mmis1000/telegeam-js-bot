@@ -8,10 +8,6 @@ module.exports = {
     fs.writeFileSync(filePath, file_content);
     cb(filePath);
   },
-  execute: function (file_path, cb) {
-    var child = child_process.spawn('ruby', [file_path], {cwd: path.dirname(file_path)});
-    cb(child);
-  },
   getExecuteArgs: function (file_path, cb) {
     return {
       path: 'ruby',

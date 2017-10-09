@@ -8,12 +8,6 @@ module.exports = {
     fs.writeFileSync(filePath, file_content);
     cb(filePath);
   },
-  execute: function (file_path, cb) {
-    var child = child_process.spawn('wine', ['cmd', '/c', path.basename(file_path)], {cwd: path.dirname(file_path), stdin: "pipe"});
-    // fs.createReadStream(file_path).pipe(child.stdin);
-    
-    cb(child);
-  },
   getExecuteArgs: function (file_path, cb) {
     return {
       path: "wine",
