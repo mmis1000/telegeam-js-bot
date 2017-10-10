@@ -206,7 +206,7 @@ function spawn(parsedCommnad, con) {
   con.once('throw', onExitOrThrow);
   con.once('exit', onExitOrThrow);
   
-  if (parsedCommnad.stdin) {
+  if (parsedCommnad.stdin !== undefined) {
     runnerInfo.stdins.push(parsedCommnad.stdin)
   }
   
@@ -278,7 +278,12 @@ function spawn(parsedCommnad, con) {
       child.stderr.on('error', con.error)
       
       while (runnerInfo.stdins.length > 0) {
-        child.stdin.write(runnerInfo.stdins.shift());
+        var part = runnerInfo.stdins.shift();
+        if (part == null) {
+          runnerInfo.process.stdin.end();
+        } else {
+          runnerInfo.process.stdin.write(part);
+        }
       }
         
       runnerInfo.waitAlive(function () {
@@ -339,7 +344,7 @@ function write(parsedCommnad, con) {
     return con.throw('runner ' + parsedCommnad.id + ' does not exist');
   }
   
-  if (!parsedCommnad.stdin) {
+  if (parsedCommnad.stdin === undefined) {
     return con.error('no stdin provided');
   }
   
@@ -347,7 +352,12 @@ function write(parsedCommnad, con) {
   try {
     if (runnerInfo.process) {
       while (runnerInfo.stdins.length > 0) {
-        runnerInfo.process.stdin.write(runnerInfo.stdins.shift());
+        var part = runnerInfo.stdins.shift();
+        if (part == null) {
+          runnerInfo.process.stdin.end();
+        } else {
+          runnerInfo.process.stdin.write(part);
+        }
       }
     }
   } catch (err) {

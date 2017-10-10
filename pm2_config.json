@@ -1,0 +1,8 @@
+{
+  "apps" : [{
+    "name" : "js_bot",
+    "script" : "./index.js",
+    "watch" : true,
+    "exec_mode" : "fork"
+  }]
+}

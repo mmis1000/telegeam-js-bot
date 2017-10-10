@@ -177,7 +177,7 @@ RUN apt-get update \
     && apt-get install -y automake texinfo git libcap-dev \
     && git clone https://github.com/mmis1000/gnu_time.git \
     && cd gnu_time \
-    && git checkout 684b5a1f347cc850b1989fec2c6a4782e8e5fd1b \
+    && git checkout 1e57444bdfca5d66074e227427fb59f68ec42949 \
     && ./bootstrap \
     && ./configure \
     && make \
