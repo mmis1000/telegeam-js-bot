@@ -4,19 +4,11 @@ var child_process = require("child_process");
 
 module.exports = {
   setup: function (work_dir, file_content, cb, con) {
-    var className = (/public\s+class\s+([A-Z][A-Za-z0-9]*)/).exec(file_content);
-    if (!className) {
-      con.error(Error('cannot find entry class name in ' + file_content));
-      return con.exit({code: null, signal: null});
-    }
-    
-    className = className[1];
-    
-    var filePath = path.resolve(work_dir, className + '.java');
-    var binPath = path.resolve(work_dir, className);
+    var filePath = path.resolve(work_dir, 'main.fs');
+    var binPath = path.resolve(work_dir, 'main.exe');
     fs.writeFileSync(filePath, file_content);
     
-    var child = child_process.spawn('javac', ['-d', work_dir, path.basename(filePath)], {stdio: 'pipe', cwd: path.dirname(filePath)});
+    var child = child_process.spawn('fsharpc', ['--out:' + binPath, filePath], {stdio: 'pipe', cwd: path.dirname(filePath)});
     child.stdout.on('data', con.log)
     child.stderr.on('data', con.error)
     child.on('exit', function (code, sig) {
@@ -30,8 +22,8 @@ module.exports = {
   },
   getExecuteArgs: function (file_path, cb) {
     return {
-      path: 'java',
-      args: [path.basename(file_path)],
+      path: 'mono',
+      args: [file_path],
       opts: {}
     }
   }

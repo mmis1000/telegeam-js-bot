@@ -1,0 +1,1 @@
+{"type":"haskell","program":"main = putStrLn \"Hello, World!\""}

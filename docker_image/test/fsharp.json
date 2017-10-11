@@ -1,0 +1,1 @@
+{"type":"fsharp","program":"open System\n\n[<EntryPoint>]\nlet main argv =\n    printfn \"Hello, World!\"\n    0"}

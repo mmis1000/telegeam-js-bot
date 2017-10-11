@@ -1,0 +1,1 @@
+{"type":"scala","program":"object HelloWorld {\n   /* This is my first java program.  \n   * This will print 'Hello World' as the output\n   */\n   def main(args: Array[String]) {\n      println(\"Hello, world!\") // prints Hello World\n   }\n}"}

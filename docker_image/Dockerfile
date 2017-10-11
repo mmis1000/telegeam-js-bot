@@ -1,6 +1,11 @@
 # FROM ubuntu
 FROM debian:jessie
 
+ARG APT_MIRROR='opensource.nchc.org.tw'
+
+RUN sed --in-place "s/httpredir.debian.org/$APT_MIRROR/g" /etc/apt/sources.list \
+    && sed --in-place "s/deb.debian.org/$APT_MIRROR/g" /etc/apt/sources.list
+
 # 1. install common utils
 RUN apt-get update -y \
     && apt-get install -y apt-utils \
@@ -58,14 +63,14 @@ RUN curl -sSf https://static.rust-lang.org/rustup.sh | sh; \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # 11. add clisp
-RUN echo 'deb http://httpredir.debian.org/debian wheezy main' >> /etc/apt/sources.list \
+RUN echo "deb http://$APT_MIRROR/debian wheezy main" >> /etc/apt/sources.list \
     && apt-get -y update \
     && apt-get install -y clisp \
     && sed -i '/wheezy/d' /etc/apt/sources.list \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # 12. add lua
-RUN echo 'deb http://httpredir.debian.org/debian jessie-backports main' >> /etc/apt/sources.list \
+RUN echo "deb http://$APT_MIRROR/debian jessie-backports main" >> /etc/apt/sources.list \
     && apt-get -y update \
     && apt-get install -y lua5.3 \
     && sed -i '/jessie-backports/d' /etc/apt/sources.list \
@@ -86,14 +91,56 @@ RUN apt-get -y update \
     && apt-get install -y mono-vbnc \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# 16. Install wine and related packages
+# 16. add fsharp
+RUN apt-get -y update \
+    && apt-get install -y fsharp \
+    && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+# 17. add haskell
+RUN apt-get -y update \
+    && apt-get install -y haskell-platform \
+    && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+# dependency issue
+# 18. add swift
+# RUN mkdir /opt/swift \
+#     && cd /opt/swift/ \
+#     && wget https://swift.org/builds/swift-4.0-release/ubuntu1610/swift-4.0-RELEASE/swift-4.0-RELEASE-ubuntu16.10.tar.gz \
+#     && tar -xzf swift-4.0-RELEASE-ubuntu16.10.tar.gz \
+#     && echo 'PATH="/opt/swift/swift-4.0-RELEASE-ubuntu16.10/usr/bin:$PATH"' > /etc/profile  \
+#     && echo "deb http://$APT_MIRROR/debian testing main contrib non-free" > /etc/apt/sources.list.d/gcc.list \
+#     && echo 'Package: gcc' > /etc/apt/preferences.d/gcc \
+#     && echo 'Pin: release a=testing' >> /etc/apt/preferences.d/gcc \
+#     && echo 'Pin-Priority: 100' >> /etc/apt/preferences.d/gcc \
+#     && apt-get update \
+#     && apt-get install -y -t testing gcc \
+#     && rm -f /etc/apt/sources.list.d/gcc.list /etc/apt/preferences.d/gcc \
+#     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \
+#     && apt-get update \
+#     && apt-get install -y curl gcc python-dev python-pip libffi-dev python-setuptools sqlite3 git-core git cmake ninja-build clang uuid-dev libicu-dev icu-devtools libbsd-dev libedit-dev libxml2-dev libsqlite3-dev swig libpython-dev libncurses5-dev pkg-config libpython2.7 libtinfo-dev \
+#     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \
+#     && ln -s /usr/lib/x86_64-linux-gnu/libstdc++.so.6 /usr/lib/libstdc++.so \
+#     && wget http://ftp.us.debian.org/debian/pool/main/i/icu/libicu57_57.1-6_amd64.deb \
+#     && dpkg -i libicu57_57.1-6_amd64.deb \
+#     && apt-get install -f -y \
+#     && rm -f libicu57_57.1-6_amd64.deb \
+#     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+    
+# ENV PATH /opt/swift/swift-4.0-RELEASE-ubuntu16.10/usr/bin:$PATH
+
+# 19. add scala
+RUN apt-get -y update \
+    && apt-get install -y scala \
+    && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+    
+# 20. Install wine and related packages
 RUN dpkg --add-architecture i386 \
     && apt-get update \
 	&& apt-get install -y --no-install-recommends wine \
 	                                              wine32 \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# 17. Use the latest version of winetricks
+# 21. Use the latest version of winetricks
 RUN curl -SL 'https://raw.githubusercontent.com/Winetricks/winetricks/master/src/winetricks' -o /usr/local/bin/winetricks \
 	&& chmod +x /usr/local/bin/winetricks
 
@@ -109,7 +156,7 @@ RUN addgroup $USER_NAME; \
     passwd $USER_NAME -d; \
     bash -c "echo $USER_NAME ALL=NOPASSWD: ALL > /etc/sudoers.d/myOverrides"
 
-# 18. install nvm as user
+# install nvm as user
 USER $USER_NAME
 
 ENV NVM_DIR /home/$USER_NAME/.nvm
@@ -135,11 +182,11 @@ RUN chown -R root:root $NVM_DIR/versions/v$NODE_VERSION/
 # Replace shell back
 RUN rm /bin/sh && mv /bin/sh_backup /bin/sh
 
-# 19. install brainfuck
+# 22. install brainfuck
 RUN npm install -y -g brainless; \
     npm cache clean --force && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# 20. install coffee script
+# 23. install coffee script
 RUN npm install -y -g coffee-script; \
     npm cache clean --force && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
@@ -152,7 +199,7 @@ RUN npm install -y -g coffee-script; \
 # RUN apt-get purge -y software-properties-common; \
 #     apt-get autoclean -y
 
-# Set the locale
+# 24. Set the locale
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y locales \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
@@ -172,7 +219,7 @@ USER root
 WORKDIR /app/
 RUN mkdir app
 
-# install my own time
+# 25. install my own time
 RUN apt-get update \
     && apt-get install -y automake texinfo git libcap-dev \
     && git clone https://github.com/mmis1000/gnu_time.git \

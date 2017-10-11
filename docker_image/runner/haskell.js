@@ -4,19 +4,11 @@ var child_process = require("child_process");
 
 module.exports = {
   setup: function (work_dir, file_content, cb, con) {
-    var className = (/public\s+class\s+([A-Z][A-Za-z0-9]*)/).exec(file_content);
-    if (!className) {
-      con.error(Error('cannot find entry class name in ' + file_content));
-      return con.exit({code: null, signal: null});
-    }
-    
-    className = className[1];
-    
-    var filePath = path.resolve(work_dir, className + '.java');
-    var binPath = path.resolve(work_dir, className);
+    var filePath = path.resolve(work_dir, 'main.hs');
+    var binPath = path.resolve(work_dir, 'main');
     fs.writeFileSync(filePath, file_content);
     
-    var child = child_process.spawn('javac', ['-d', work_dir, path.basename(filePath)], {stdio: 'pipe', cwd: path.dirname(filePath)});
+    var child = child_process.spawn('ghc', ['-o', binPath, filePath], {stdio: 'pipe', cwd: path.dirname(filePath)});
     child.stdout.on('data', con.log)
     child.stderr.on('data', con.error)
     child.on('exit', function (code, sig) {
@@ -25,13 +17,14 @@ module.exports = {
         con.exit({code: code, signal: sig});
         return
       }
+      fs.chmodSync(binPath, 0777)
       cb(binPath)
     })
   },
   getExecuteArgs: function (file_path, cb) {
     return {
-      path: 'java',
-      args: [path.basename(file_path)],
+      path: file_path,
+      args: [],
       opts: {}
     }
   }
