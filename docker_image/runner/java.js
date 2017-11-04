@@ -6,7 +6,7 @@ module.exports = {
   setup: function (work_dir, file_content, cb, con) {
     var className = (/public\s+class\s+([A-Z][A-Za-z0-9]*)/).exec(file_content);
     if (!className) {
-      con.error(Error('cannot find entry class name in ' + file_content));
+      con.error(Error('cannot find entry class name in the code, is there anything like "public class YouurClassName" ?'));
       return con.exit({code: null, signal: null});
     }
     
