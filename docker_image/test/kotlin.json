@@ -1,0 +1,1 @@
+{"type":"kotlin","program":"fun main(args: Array<String>) {\n    println(\"Hello, World!\")\n}"}

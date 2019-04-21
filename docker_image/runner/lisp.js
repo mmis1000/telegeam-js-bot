@@ -11,8 +11,8 @@ module.exports = {
   },
   getExecuteArgs: function (file_path, cb) {
     return {
-      path: 'clisp',
-      args: [path.basename(file_path)],
+      path: 'sbcl',
+      args: [' --script', path.basename(file_path)],
       opts: {}
     }
   }

@@ -1,14 +1,19 @@
 # FROM ubuntu
-FROM debian:jessie
+FROM debian:stretch
 
 ARG APT_MIRROR='opensource.nchc.org.tw'
 
 RUN sed --in-place "s/httpredir.debian.org/$APT_MIRROR/g" /etc/apt/sources.list \
     && sed --in-place "s/deb.debian.org/$APT_MIRROR/g" /etc/apt/sources.list
 
+# 0. install eatmydata
+RUN apt-get update -y \
+    && apt-get install -y eatmydata \
+    && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
 # 1. install common utils
 RUN apt-get update -y \
-    && apt-get install -y apt-utils \
+    && eatmydata apt-get install -y apt-utils \
                        sudo \
                        tmux \
                        nano \
@@ -16,90 +21,87 @@ RUN apt-get update -y \
                        curl \
                        wget \
                        less \
+                       zip \
                        software-properties-common \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # 2. install build essential for c and cpp
 RUN apt-get update -y \
-    && apt-get install -y build-essential \
+    && eatmydata apt-get install -y build-essential \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # 3. install python 2 and 3
 RUN apt-get update -y \
-    && apt-get install -y python3 \
+    && eatmydata apt-get install -y python3 \
                           python2.7 \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # 4. install node.js  
-RUN apt-get update -y \
-    && apt-get install -y nodejs \
-    && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
-
-# 5. fix node.js path
-RUN ln -s /usr/bin/nodejs /usr/bin/node
-
-# 6. install npm
-RUN apt-get update -y \
-    && apt-get install -y npm \
+RUN curl -sL https://deb.nodesource.com/setup_8.x | eatmydata bash - \
+    && apt-get -y update \
+    && eatmydata apt-get install -y nodejs \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # 7. install java
 RUN apt-get -y update \
-    && apt-get -y --no-install-recommends install openjdk-7-jdk \
+    && eatmydata apt-get -y --no-install-recommends install openjdk-8-jdk \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # 8. install php
 RUN apt-get -y update \
-    && apt-get install -y php5-cli \
+    && eatmydata apt-get install -y php7.0-cli \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # 9. add golang
 RUN apt-get -y update \
-    && apt-get install -y golang \
+    && eatmydata apt-get install -y golang \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # 10. add rust lang
-RUN curl -sSf https://static.rust-lang.org/rustup.sh | sh; \
-    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+RUN curl https://sh.rustup.rs -sSf |  sh -s -- -y \
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # 11. add clisp
-RUN echo "deb http://$APT_MIRROR/debian wheezy main" >> /etc/apt/sources.list \
-    && apt-get -y update \
-    && apt-get install -y clisp \
-    && sed -i '/wheezy/d' /etc/apt/sources.list \
+RUN apt-get -y update \
+    && eatmydata apt-get install -y sbcl \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # 12. add lua
-RUN echo "deb http://$APT_MIRROR/debian jessie-backports main" >> /etc/apt/sources.list \
-    && apt-get -y update \
-    && apt-get install -y lua5.3 \
-    && sed -i '/jessie-backports/d' /etc/apt/sources.list \
+RUN apt-get -y update \
+    && eatmydata apt-get install -y lua5.3 \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # 13. add csharp and probably other .net based language
 RUN apt-get -y update \
-    && apt-get install -y mono-xbuild mono-mcs mono-devel \
+    && eatmydata apt-get install -y mono-xbuild mono-mcs mono-devel \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # 14. add ruby
 RUN apt-get -y update \
-    && apt-get install -y ruby \
+    && eatmydata apt-get install -y ruby \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # 15. add vb
 RUN apt-get -y update \
-    && apt-get install -y mono-vbnc \
+    && eatmydata apt-get install -y mono-vbnc \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # 16. add fsharp
 RUN apt-get -y update \
-    && apt-get install -y fsharp \
+    && eatmydata apt-get install -y fsharp \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # 17. add haskell
 RUN apt-get -y update \
-    && apt-get install -y haskell-platform \
+    && eatmydata apt-get install -y haskell-platform \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+# add kotlin
+RUN cd /usr/lib && \
+    wget https://github.com/JetBrains/kotlin/releases/download/v1.3.30/kotlin-compiler-1.3.30.zip && \
+    unzip kotlin-compiler-*.zip && \
+    rm kotlin-compiler-*.zip && \
+    rm -f kotlinc/bin/*.bat
 
 # dependency issue
 # 18. add swift
@@ -130,13 +132,13 @@ RUN apt-get -y update \
 
 # 19. add scala
 RUN apt-get -y update \
-    && apt-get install -y scala \
+    && eatmydata apt-get install -y scala \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
     
 # 20. Install wine and related packages
 RUN dpkg --add-architecture i386 \
     && apt-get update \
-	&& apt-get install -y --no-install-recommends wine \
+	&& eatmydata apt-get install -y --no-install-recommends wine \
 	                                              wine32 \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
@@ -171,7 +173,9 @@ RUN curl https://raw.githubusercontent.com/creationix/nvm/v0.20.0/install.sh | b
     && nvm use default
 
 ENV NODE_PATH $NVM_DIR/versions/v$NODE_VERSION/lib/node_modules
-ENV PATH      $NVM_DIR/versions/v$NODE_VERSION/bin:$PATH
+
+# configuring all paths
+ENV PATH      /usr/lib/kotlinc/bin:/root/.cargo/bin:$NVM_DIR/versions/v$NODE_VERSION/bin:$PATH
 
 # Switch back for other lib
 USER root
@@ -201,7 +205,7 @@ RUN npm install -y -g coffee-script; \
 
 # 24. Set the locale
 RUN apt-get update \
-    && DEBIAN_FRONTEND=noninteractive apt-get install -y locales \
+    && DEBIAN_FRONTEND=noninteractive eatmydata apt-get install -y locales \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 RUN sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
     locale-gen
@@ -221,10 +225,11 @@ RUN mkdir app
 
 # 25. install my own time
 RUN apt-get update \
-    && apt-get install -y automake texinfo git libcap-dev \
-    && git clone https://github.com/mmis1000/gnu_time.git \
+    && eatmydata apt-get install -y automake texinfo git libcap-dev \
+    && git clone --progress https://github.com/mmis1000/gnu_time.git \
     && cd gnu_time \
     && git checkout 1e57444bdfca5d66074e227427fb59f68ec42949 \
+    && git submodule update --progress --init --recursive \
     && ./bootstrap \
     && ./configure \
     && make \
