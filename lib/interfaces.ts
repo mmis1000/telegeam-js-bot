@@ -18,3 +18,17 @@ export type Program = {
     type: string,
     program: string
 }
+
+export type DockerBaseLogger = import('events').EventEmitter & {
+    stdout(info: any): void
+    stderr(info: any): void
+    log(info: any): void
+    error(info: any): void
+    throw(info: any): void
+    status(info: any): void
+    exit(info: any): void
+}
+
+export type DockerLogger = DockerBaseLogger & {
+    createNamedLogger(language?: string, id?: string): DockerBaseLogger
+}
