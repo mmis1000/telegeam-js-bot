@@ -98,13 +98,13 @@ class RunnerInfo {
 
     if (!this.pidFilePath) {
       // self.console.log('self.pidFilePath not set')
-      return setTimeout(this.waitAlive.bind(null, cb), 500);
+      return setTimeout(this.waitAlive.bind(this, cb), 500);
     }
 
     fs.stat(this.pidFilePath, (err, res) => {
       if (err || !res) {
         // self.console.log(self.pidFilePath + ' not found')
-        return setTimeout(this.waitAlive.bind(null, cb), 500);
+        return setTimeout(this.waitAlive.bind(this, cb), 500);
       }
 
       cb();
