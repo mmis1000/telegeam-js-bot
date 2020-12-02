@@ -10,11 +10,11 @@ fs.readdir('./test', function (err, names) {
         return /\.templete$/.test(name);
     })
     names.forEach(function (name) {
-        fs.readFile(path.resolve('./test', name), function (err, data) {
+        fs.readFile(path.resolve('./test', name), { encoding: 'utf-8' } ,function (err, data) {
             if (err) {
                 return console.error(name + ': ' + err.stack);
             }
-            data = data.toString('utf8');
+
             console.log('generated ' + name.replace(/\.templete$/, '.json'));
             fs.writeFile(path.resolve('./test', name.replace(/\.templete$/, '.json')), JSON.stringify({
                 type: name.replace(/\.templete$/, ''),
