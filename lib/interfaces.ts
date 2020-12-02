@@ -32,3 +32,12 @@ export type DockerBaseLogger = import('events').EventEmitter & {
 export type DockerLogger = DockerBaseLogger & {
     createNamedLogger(language?: string, id?: string): DockerBaseLogger
 }
+
+export type DockerLanguageDef = {
+    setup (work_dir: string, file_content: string, cb: (path: string) => void, con: DockerBaseLogger): void
+    getExecuteArgs (file_path: string): {
+        path: string,
+        args: string[],
+        opts: import('child_process').SpawnOptionsWithoutStdio
+    }
+}

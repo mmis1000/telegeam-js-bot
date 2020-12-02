@@ -1,7 +1,15 @@
 # FROM ubuntu
-FROM debian:stretch
+FROM debian:buster
 
 ARG APT_MIRROR='opensource.nchc.org.tw'
+
+# Username
+ENV USER_NAME debian
+
+ENV NVM_DIR /home/$USER_NAME/.nvm
+
+ENV NODE_VERSION 14.15.1
+ENV KOTLIN_VERSION=1.4.20
 
 RUN sed --in-place "s/httpredir.debian.org/$APT_MIRROR/g" /etc/apt/sources.list \
     && sed --in-place "s/deb.debian.org/$APT_MIRROR/g" /etc/apt/sources.list
@@ -37,19 +45,19 @@ RUN apt-get update -y \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # 4. install node.js  
-RUN curl -sL https://deb.nodesource.com/setup_8.x | eatmydata bash - \
+RUN curl -sL https://deb.nodesource.com/setup_14.x | eatmydata bash - \
     && apt-get -y update \
     && eatmydata apt-get install -y nodejs \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # 7. install java
 RUN apt-get -y update \
-    && eatmydata apt-get -y --no-install-recommends install openjdk-8-jdk \
+    && eatmydata apt-get -y --no-install-recommends install openjdk-11-jdk \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # 8. install php
 RUN apt-get -y update \
-    && eatmydata apt-get install -y php7.0-cli \
+    && eatmydata apt-get install -y php7.3-cli \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # 9. add golang
@@ -72,13 +80,10 @@ RUN apt-get -y update \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # 13. add csharp and probably other .net based language
-RUN apt-get -y update \
+RUN apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 3FA7E0328081BFF6A14DA29AA6A19B38D3D831EF \
+    && echo "deb https://download.mono-project.com/repo/debian stable-buster main" | sudo tee /etc/apt/sources.list.d/mono-official-stable.list \
+    && apt-get -y update \
     && eatmydata apt-get install -y mono-xbuild mono-mcs mono-devel \
-    && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
-
-# 14. add ruby
-RUN apt-get -y update \
-    && eatmydata apt-get install -y ruby \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # 15. add vb
@@ -86,6 +91,10 @@ RUN apt-get -y update \
     && eatmydata apt-get install -y mono-vbnc \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
+# 14. add ruby
+RUN apt-get -y update \
+    && eatmydata apt-get install -y ruby \
+    && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 # 16. add fsharp
 RUN apt-get -y update \
     && eatmydata apt-get install -y fsharp \
@@ -98,7 +107,7 @@ RUN apt-get -y update \
 
 # add kotlin
 RUN cd /usr/lib && \
-    wget https://github.com/JetBrains/kotlin/releases/download/v1.3.30/kotlin-compiler-1.3.30.zip && \
+    wget "https://github.com/JetBrains/kotlin/releases/download/v${KOTLIN_VERSION}/kotlin-compiler-${KOTLIN_VERSION}.zip" && \
     unzip kotlin-compiler-*.zip && \
     rm kotlin-compiler-*.zip && \
     rm -f kotlinc/bin/*.bat
@@ -146,8 +155,6 @@ RUN dpkg --add-architecture i386 \
 RUN curl -SL 'https://raw.githubusercontent.com/Winetricks/winetricks/master/src/winetricks' -o /usr/local/bin/winetricks \
 	&& chmod +x /usr/local/bin/winetricks
 
-# Username
-ENV USER_NAME debian
 
 # Replace shell with bash so we can source files
 RUN mv /bin/sh /bin/sh_backup && ln -s /bin/bash /bin/sh
@@ -160,9 +167,6 @@ RUN addgroup $USER_NAME; \
 
 # install nvm as user
 USER $USER_NAME
-
-ENV NVM_DIR /home/$USER_NAME/.nvm
-ENV NODE_VERSION 8.5.0
 
 # Install nvm with node and npm
 RUN curl https://raw.githubusercontent.com/creationix/nvm/v0.20.0/install.sh | bash \
@@ -226,8 +230,11 @@ RUN mkdir app
 # 25. install my own time
 RUN apt-get update \
     && eatmydata apt-get install -y automake texinfo git libcap-dev \
-    && git clone --progress https://github.com/mmis1000/gnu_time.git \
+    && mkdir gnu_time\
     && cd gnu_time \
+    && git init \
+    && git remote add origin "https://github.com/mmis1000/gnu_time.git" \
+    && git fetch --depth=1 origin 1e57444bdfca5d66074e227427fb59f68ec42949 \
     && git checkout 1e57444bdfca5d66074e227427fb59f68ec42949 \
     && git submodule update --progress --init --recursive \
     && ./bootstrap \

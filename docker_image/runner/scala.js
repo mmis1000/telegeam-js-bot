@@ -2,15 +2,18 @@ var fs = require("fs");
 var path = require("path");
 var child_process = require("child_process");
 
+/**
+ * @type {import('../../lib/interfaces').DockerLanguageDef}
+ */
 module.exports = {
   setup: function (work_dir, file_content, cb, con) {
-    var className = (/object\s+([A-Z][A-Za-z0-9]*)/).exec(file_content);
-    if (!className) {
+    var classNameArr = (/object\s+([A-Z][A-Za-z0-9]*)/).exec(file_content);
+    if (!classNameArr) {
       con.error(Error('cannot find entry class name in ' + file_content));
       return con.exit({code: null, signal: null});
     }
     
-    className = className[1];
+    var className = classNameArr[1];
     
     var filePath = path.resolve(work_dir, className + '.scala');
     var binPath = path.resolve(work_dir, className + '.class');
@@ -28,7 +31,7 @@ module.exports = {
       cb(binPath)
     })
   },
-  getExecuteArgs: function (file_path, cb) {
+  getExecuteArgs: function (file_path) {
     return {
       path: 'scala',
       args: [path.basename(file_path).replace(/\.class$/, '')],

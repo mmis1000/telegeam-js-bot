@@ -2,6 +2,9 @@ var fs = require("fs");
 var path = require("path");
 var child_process = require("child_process");
 
+/**
+ * @type {import('../../lib/interfaces').DockerLanguageDef}
+ */
 module.exports = {
   setup: function (work_dir, file_content, cb, con) {
     var filePath = path.resolve(work_dir, 'main.go');
@@ -17,19 +20,11 @@ module.exports = {
         con.exit({code: code, signal: sig});
         return
       }
-      fs.chmodSync(binPath, 0777)
+      fs.chmodSync(binPath, 0o777)
       cb(binPath)
     })
   },
-  execute: function (file_path, cb, con) {
-    try {
-      var child = child_process.spawn(file_path, [], {cwd: path.dirname(file_path)});
-    } catch (e) {
-      return con.error(e.stack || e.toString());
-    }
-    cb(child);
-  },
-  getExecuteArgs: function (file_path, cb) {
+  getExecuteArgs: function (file_path) {
     return {
       path: file_path,
       args: [],

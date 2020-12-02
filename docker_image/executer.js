@@ -1,3 +1,4 @@
+// @ts-check
 const readline = require('readline');
 const fs = require('fs');
 const path = require('path');
@@ -14,6 +15,9 @@ rl.on('line', (cmd) => {
   main(cmd)
 });
 
+/**
+ * @param {string} str
+ */
 function trim(str) {
   return str.replace(/^[\s\r\n]+|[\s\r\n]+$/g, '');
 }
@@ -25,8 +29,18 @@ function guidGenerator() {
     return (S4()+S4()+"-"+S4()+"-"+S4()+"-"+S4()+"-"+S4()+S4()+S4());
 }
 
+/**
+ * @param {import("../lib/interfaces").DockerBaseLogger} emitter
+ * @param {string} type
+ * @param {boolean | undefined} [willKill]
+ * @param {string | undefined} [language]
+ * @param {string | undefined} [id]
+ */
 function createLogger(emitter, type, willKill, language, id) {
-  return function (info) {
+  /**
+   * @param {string | undefined | Buffer | Error} info
+   */
+  function printData (info) {
     if (info instanceof Buffer) {
       info = info.toString('utf8');
     } else if (info instanceof Error) {
@@ -49,58 +63,74 @@ function createLogger(emitter, type, willKill, language, id) {
       process.exit(-1);
     }
   }
+  return printData
 }
 
-function RunnerInfo() {
-  this.stdins = [];
-  this.signals = [];
-  this.process = null;
-  this.console = null;
-  this.pidFilePath = null;
-  this._pid = null;
-  this.exited = false;
-  
-  var self = this;
-  this.waitAlive = function wait(cb) {
-    if (self.exited) return;
-    
-    if (!self.pidFilePath) {
+/**
+ * @class RunnerInfo
+ */
+class RunnerInfo {
+  constructor() {
+    /** @type {string[]} */
+    this.stdins = [];
+    /** @type {(string | number)[]} */
+    this.signals = [];
+    /** @type {child_process.ChildProcessWithoutNullStreams | null} */
+    this.process = null;
+    /** @type {import('../lib/interfaces').DockerBaseLogger} */
+    this.console;
+    /** @type {string} */
+    this.pidFilePath;
+    this._pid = null;
+    this.exited = false;
+
+    var self = this;
+  }
+
+  /**
+   * 
+   * @param {() => void} cb 
+   * @returns { NodeJS.Timeout|undefined }
+   */
+  waitAlive (cb) {
+    if (this.exited)
+      return;
+
+    if (!this.pidFilePath) {
       // self.console.log('self.pidFilePath not set')
-      return setTimeout(wait.bind(null, cb), 500);
+      return setTimeout(this.waitAlive.bind(null, cb), 500);
     }
-    
-    fs.stat(self.pidFilePath, function (err, res) {
+
+    fs.stat(this.pidFilePath, (err, res) => {
       if (err || !res) {
         // self.console.log(self.pidFilePath + ' not found')
-        return setTimeout(wait.bind(null, cb), 500);
+        return setTimeout(this.waitAlive.bind(null, cb), 500);
       }
-      
+
       cb();
-    })
+    });
   }
-  
-  Object.defineProperty(this, 'pid', {
-    get: function () {
-      if (this._pid) {
-        return this._pid
-      }
-      
-      if (!this.pidFilePath) {
-        return null;
-      }
-      
-      try {
-        var pid = parseInt(fs.readFileSync(this.pidFilePath), 10);
-        this._pid = pid
-        return pid;
-      } catch (e) {
-        return null;
-      }
+
+  get pid () {
+    if (this._pid) {
+      return this._pid;
     }
-  })
+
+    if (!this.pidFilePath) {
+      return null;
+    }
+
+    try {
+      var pid = parseInt(fs.readFileSync(this.pidFilePath, { encoding: 'utf-8' }), 10);
+      this._pid = pid;
+      return pid;
+    } catch (e) {
+      return null;
+    }
+  }
 }
 
-var con = global.con = new EventEmitter();
+var con = /** @type { import('../lib/interfaces').DockerLogger } */(new EventEmitter());
 con.on('error', function nuzz() {});
 
 con.stdout = createLogger(con, 'stdout')
@@ -110,14 +140,8 @@ con.error = createLogger(con, 'error')
 con.throw = createLogger(con, 'throw')
 con.status = createLogger(con, 'status')
 con.exit = createLogger(con, 'exit')
-con.createNamedLogger = function (language, id) {
-  language = language || 'unknown';
-  
-  if (id == null) {
-    id = guidGenerator();
-  }
-  
-  var logger = new EventEmitter();
+con.createNamedLogger = function (language = 'unknown', id = guidGenerator()) {
+  var logger = /** @type { import('../lib/interfaces').DockerBaseLogger } */(new EventEmitter());
   logger.on('error', function nuzz() {});
   
   logger.stdout = createLogger(logger, 'stdout', false, language, id);
@@ -133,6 +157,9 @@ con.createNamedLogger = function (language, id) {
 
 var runnerInfos = new Map();
 
+/**
+ * @param {string} input
+ */
 function main (input) {
   // console.log(input.toString('utf8'));
   try {
@@ -184,6 +211,10 @@ function main (input) {
   }
 }
 
+/**
+ * @param {{ id: string; stdin?: string; user: string; type: string; program: any; }} parsedCommnad
+ * @param {import("../lib/interfaces").DockerBaseLogger} con
+ */
 function spawn(parsedCommnad, con) {
   // var timeResultPath = process.env.HOME + '/time_results/' + parsedCommnad.id + '.txt';
   // var pidFilePath = process.env.HOME + '/pids/' + parsedCommnad.id + '.pid';
@@ -220,15 +251,22 @@ function spawn(parsedCommnad, con) {
   fs.mkdirSync(folder);
   
   // myConsole.log(parsedCommnad);
+  /**
+   * @type {import('../lib/interfaces').DockerLanguageDef}
+   * */
+  var runner
   try {
-    var runner = require('./runner/' + parsedCommnad.type)
+    runner = require('./runner/' + parsedCommnad.type)
   } catch (e) {
     return con.throw('cannot find runner for ' + parsedCommnad.type + ', aborted.')
   }
   
   con.status('setting up');
   
-  runner.setup(folder, parsedCommnad.program, function (file_path) {
+  runner.setup(folder, parsedCommnad.program, /**
+  * @param {string} file_path
+  */
+  function (file_path) {
     // myConsole.log('setup finished');
     con.status('executing')
     if (runner.getExecuteArgs) {
@@ -289,7 +327,9 @@ function spawn(parsedCommnad, con) {
       runnerInfo.waitAlive(function () {
         while (runnerInfo.signals.length > 0) {
           try {
-            process.kill(runnerInfo.pid, runnerInfo.signals.shift());
+            if (runnerInfo.pid != null) {
+              process.kill(runnerInfo.pid, runnerInfo.signals.shift());
+            }
           } catch (e) {}
         }
       })
@@ -337,6 +377,10 @@ function spawn(parsedCommnad, con) {
   }, con)
 }
 
+/**
+ * @param {{ id: string; stdin: undefined; }} parsedCommnad
+ * @param {{ throw: (arg0: string) => any; error: (arg0: string) => void; }} con
+ */
 function write(parsedCommnad, con) {
   var runnerInfo = runnerInfos.get(parsedCommnad.id);
   
@@ -365,6 +409,10 @@ function write(parsedCommnad, con) {
   }
 }
 
+/**
+ * @param {{ id: string; signal: string; }} parsedCommnad
+ * @param {{ throw: (arg0: string) => any; log: (arg0: string) => void; }} con
+ */
 function kill(parsedCommnad, con) {
   var runnerInfo = runnerInfos.get(parsedCommnad.id);
   
@@ -378,7 +426,10 @@ function kill(parsedCommnad, con) {
   
   runnerInfo.signals.push(parsedCommnad.signal);
   
-  runnerInfo.waitAlive(function (argument) {
+  runnerInfo.waitAlive(/**
+     * @param {any} argument
+     */
+function (argument) {
     con.log('pid is ' + runnerInfo.pid);
     try {
       process.kill(runnerInfo.pid, runnerInfo.signals.shift());

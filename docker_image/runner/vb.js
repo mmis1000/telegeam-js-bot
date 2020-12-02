@@ -2,6 +2,9 @@ var fs = require("fs");
 var path = require("path");
 var child_process = require("child_process");
 
+/**
+ * @type {import('../../lib/interfaces').DockerLanguageDef}
+ */
 module.exports = {
   setup: function (work_dir, file_content, cb, con) {
     var filePath = path.resolve(work_dir, 'main.vb');
@@ -23,7 +26,7 @@ module.exports = {
     // fs.chmodSync(binPath, 0777)
     // cb(binPath);
   },
-  getExecuteArgs: function (file_path, cb) {
+  getExecuteArgs: function (file_path) {
     return {
       path: 'mono',
       args: [file_path],
