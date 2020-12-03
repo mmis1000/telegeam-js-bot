@@ -112,32 +112,16 @@ RUN cd /usr/lib && \
     rm kotlin-compiler-*.zip && \
     rm -f kotlinc/bin/*.bat
 
-# dependency issue
 # 18. add swift
-# RUN mkdir /opt/swift \
-#     && cd /opt/swift/ \
-#     && wget https://swift.org/builds/swift-4.0-release/ubuntu1610/swift-4.0-RELEASE/swift-4.0-RELEASE-ubuntu16.10.tar.gz \
-#     && tar -xzf swift-4.0-RELEASE-ubuntu16.10.tar.gz \
-#     && echo 'PATH="/opt/swift/swift-4.0-RELEASE-ubuntu16.10/usr/bin:$PATH"' > /etc/profile  \
-#     && echo "deb http://$APT_MIRROR/debian testing main contrib non-free" > /etc/apt/sources.list.d/gcc.list \
-#     && echo 'Package: gcc' > /etc/apt/preferences.d/gcc \
-#     && echo 'Pin: release a=testing' >> /etc/apt/preferences.d/gcc \
-#     && echo 'Pin-Priority: 100' >> /etc/apt/preferences.d/gcc \
-#     && apt-get update \
-#     && apt-get install -y -t testing gcc \
-#     && rm -f /etc/apt/sources.list.d/gcc.list /etc/apt/preferences.d/gcc \
-#     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \
-#     && apt-get update \
-#     && apt-get install -y curl gcc python-dev python-pip libffi-dev python-setuptools sqlite3 git-core git cmake ninja-build clang uuid-dev libicu-dev icu-devtools libbsd-dev libedit-dev libxml2-dev libsqlite3-dev swig libpython-dev libncurses5-dev pkg-config libpython2.7 libtinfo-dev \
-#     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \
-#     && ln -s /usr/lib/x86_64-linux-gnu/libstdc++.so.6 /usr/lib/libstdc++.so \
-#     && wget http://ftp.us.debian.org/debian/pool/main/i/icu/libicu57_57.1-6_amd64.deb \
-#     && dpkg -i libicu57_57.1-6_amd64.deb \
-#     && apt-get install -f -y \
-#     && rm -f libicu57_57.1-6_amd64.deb \
-#     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
-    
-# ENV PATH /opt/swift/swift-4.0-RELEASE-ubuntu16.10/usr/bin:$PATH
+RUN apt-get -y update \
+    && apt-get install -y libncurses5 clang libcurl4 libpython2.7 libpython2.7-dev \
+    && wget https://swift.org/builds/swift-5.1.3-release/ubuntu1804/swift-5.1.3-RELEASE/swift-5.1.3-RELEASE-ubuntu18.04.tar.gz \
+    && tar xzf swift-5.1.3-RELEASE-ubuntu18.04.tar.gz \
+    && mv swift-5.1.3-RELEASE-ubuntu18.04 /opt/swift/ \
+    && rm swift-5.1.3-RELEASE-ubuntu18.04.tar.gz \
+    && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+ENV PATH /opt/swift/usr/bin:$PATH
 
 # 19. add scala
 RUN apt-get -y update \

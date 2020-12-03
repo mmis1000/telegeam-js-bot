@@ -16,9 +16,11 @@ fs.readdir('./test', function (err, names) {
     })
     var JSONs = JSONTexts.join('')
     
-    console.log('test using image ' +  (process.argv[2] ?? require("../config.js").image_name));
+    const image = (process.argv[2] ?? require("../config.js").image_name)
+
+    console.log('test using image ' +  image);
     
-    var child = child_process.spawn('docker', ['run', '-i', '--rm', require("../config.js").image_name, 'node', '/app/executer.js'])
+    var child = child_process.spawn('docker', ['run', '-i', '--rm', image, 'node', '/app/executer.js'])
     helper.hookStdout(child.stdout);
     child.stderr.pipe(process.stderr);
     child.stdin.write(JSONs);
