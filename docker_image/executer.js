@@ -163,67 +163,64 @@ var runnerInfos = new Map();
 function main (input) {
   // console.log(input.toString('utf8'));
   try {
-    var parsedCommnad = JSON.parse(input);
+    var parsedCommand = JSON.parse(input);
   } catch (err) {
     con.error('bad encoding: ' + err.stack);
     return;
   }
   
-  if (parsedCommnad.id == null) {
-    parsedCommnad.id = guidGenerator();
+  if (parsedCommand.id == null) {
+    parsedCommand.id = guidGenerator();
   }
   
-  var myConsole = runnerInfos.get(parsedCommnad.id) ?
-    runnerInfos.get(parsedCommnad.id).console :
-    con.createNamedLogger(parsedCommnad.type, parsedCommnad.id);
+  var myConsole = runnerInfos.get(parsedCommand.id) ?
+    runnerInfos.get(parsedCommand.id).console :
+    con.createNamedLogger(parsedCommand.type, parsedCommand.id);
   
-  if (parsedCommnad.encoding) {
-    switch (parsedCommnad.encoding) {
+  if (parsedCommand.encoding) {
+    switch (parsedCommand.encoding) {
       case 'base64':
         try {
-          if (parsedCommnad.program) {
-            parsedCommnad.program = new Buffer(parsedCommnad.program, 'base64');
+          if (parsedCommand.program) {
+            parsedCommand.program = new Buffer(parsedCommand.program, 'base64');
           }
           
-          if (parsedCommnad.stdin) {
-            parsedCommnad.stdin = new Buffer(parsedCommnad.program, 'base64');
+          if (parsedCommand.stdin) {
+            parsedCommand.stdin = new Buffer(parsedCommand.program, 'base64');
           }
         } catch (err) {
-          return myConsole.throw('corruoted base 64 string: ' + err.stack);
+          return myConsole.throw('corrupted base 64 string: ' + err.stack);
         }
         break;
       default:
-        // throw new Error('bad encoding', parsedCommnad.encoding)
-        return myConsole.throw('bad encoding: ' + parsedCommnad.encoding)
+        // throw new Error('bad encoding', parsedCommand.encoding)
+        return myConsole.throw('bad encoding: ' + parsedCommand.encoding)
     }
   }
   
-  if (!parsedCommnad.action || parsedCommnad.action === 'spawn') {
-    return spawn(parsedCommnad, myConsole)
+  if (!parsedCommand.action || parsedCommand.action === 'spawn') {
+    return spawn(parsedCommand, myConsole)
   }
   
-  if (parsedCommnad.action === 'write') {
-    return write(parsedCommnad, myConsole)
+  if (parsedCommand.action === 'write') {
+    return write(parsedCommand, myConsole)
   }
   
-  if (parsedCommnad.action === 'kill') {
-    return kill(parsedCommnad, myConsole)
+  if (parsedCommand.action === 'kill') {
+    return kill(parsedCommand, myConsole)
   }
 }
 
 /**
- * @param {{ id: string; stdin?: string; user: string; type: string; program: any; }} parsedCommnad
+ * @param {{ id: string; stdin?: string; user: string; type: string; program: any; }} parsedCommand
  * @param {import("../lib/interfaces").DockerBaseLogger} con
  */
-function spawn(parsedCommnad, con) {
-  // var timeResultPath = process.env.HOME + '/time_results/' + parsedCommnad.id + '.txt';
-  // var pidFilePath = process.env.HOME + '/pids/' + parsedCommnad.id + '.pid';
-  
-  var timeResultPath = '/app/time_results/' + parsedCommnad.id + '.txt';
-  var pidFilePath = '/app/pids/' + parsedCommnad.id + '.pid';
+function spawn(parsedCommand, con) {
+  var timeResultPath = '/app/time_results/' + parsedCommand.id + '.txt';
+  var pidFilePath = '/app/pids/' + parsedCommand.id + '.pid';
   
   var runnerInfo = new RunnerInfo();
-  runnerInfos.set(parsedCommnad.id, runnerInfo);
+  runnerInfos.set(parsedCommand.id, runnerInfo);
   runnerInfo.console = con;
   runnerInfo.pidFilePath = pidFilePath;
   
@@ -237,33 +234,32 @@ function spawn(parsedCommnad, con) {
   con.once('throw', onExitOrThrow);
   con.once('exit', onExitOrThrow);
   
-  if (parsedCommnad.stdin !== undefined) {
-    runnerInfo.stdins.push(parsedCommnad.stdin)
+  if (parsedCommand.stdin !== undefined) {
+    runnerInfo.stdins.push(parsedCommand.stdin)
   }
   
-  if (parsedCommnad.user) {
-    var home = "/home/" + parsedCommnad.user + '/';
+  if (parsedCommand.user) {
+    var home = "/home/" + parsedCommand.user + '/';
   } else {
     var home = "/root/"
   }
   
   var folder = path.resolve(home, 'runner-' + Date.now())
   fs.mkdirSync(folder);
-  
-  // myConsole.log(parsedCommnad);
+
   /**
    * @type {import('../lib/interfaces').DockerLanguageDef}
    * */
   var runner
   try {
-    runner = require('./runner/' + parsedCommnad.type)
+    runner = require('./runner/' + parsedCommand.type)
   } catch (e) {
-    return con.throw('cannot find runner for ' + parsedCommnad.type + ', aborted.')
+    return con.throw('cannot find runner for ' + parsedCommand.type + ', aborted.')
   }
   
   con.status('setting up');
   
-  runner.setup(folder, parsedCommnad.program, /**
+  runner.setup(folder, parsedCommand.program, /**
   * @param {string} file_path
   */
   function (file_path) {
@@ -279,12 +275,9 @@ function spawn(parsedCommnad, con) {
       var newArgs = [
         '--verbose', 
         '-o', timeResultPath, 
-        '--user', parsedCommnad.user || 'root',
+        '--user', parsedCommand.user || 'root',
         '--pid-file', pidFilePath,
         '--cap-drop', 'cap_sys_admin,cap_setpcap,cap_setfcap',
-        // '/app/wrapper',
-        // pidFilePath,
-        // parsedCommnad.user || 'root',
         oldPath
       ]
       
@@ -372,27 +365,27 @@ function spawn(parsedCommnad, con) {
         })
       })
     } else {
-      con.throw('missing handle: ' + parsedCommnad.type);
+      con.throw('missing handle: ' + parsedCommand.type);
     }
   }, con)
 }
 
 /**
- * @param {{ id: string; stdin: undefined; }} parsedCommnad
+ * @param {{ id: string; stdin: undefined; }} parsedCommand
  * @param {{ throw: (arg0: string) => any; error: (arg0: string) => void; }} con
  */
-function write(parsedCommnad, con) {
-  var runnerInfo = runnerInfos.get(parsedCommnad.id);
+function write(parsedCommand, con) {
+  var runnerInfo = runnerInfos.get(parsedCommand.id);
   
   if (!runnerInfo) {
-    return con.throw('runner ' + parsedCommnad.id + ' does not exist');
+    return con.throw('runner ' + parsedCommand.id + ' does not exist');
   }
   
-  if (parsedCommnad.stdin === undefined) {
+  if (parsedCommand.stdin === undefined) {
     return con.error('no stdin provided');
   }
   
-  runnerInfo.stdins.push(parsedCommnad.stdin);
+  runnerInfo.stdins.push(parsedCommand.stdin);
   try {
     if (runnerInfo.process) {
       while (runnerInfo.stdins.length > 0) {
@@ -410,21 +403,21 @@ function write(parsedCommnad, con) {
 }
 
 /**
- * @param {{ id: string; signal: string; }} parsedCommnad
+ * @param {{ id: string; signal: string; }} parsedCommand
  * @param {{ throw: (arg0: string) => any; log: (arg0: string) => void; }} con
  */
-function kill(parsedCommnad, con) {
-  var runnerInfo = runnerInfos.get(parsedCommnad.id);
+function kill(parsedCommand, con) {
+  var runnerInfo = runnerInfos.get(parsedCommand.id);
   
   if (!runnerInfo) {
-    return con.throw('runner ' + parsedCommnad.id + ' does not exist');
+    return con.throw('runner ' + parsedCommand.id + ' does not exist');
   }
   
-  if (!parsedCommnad.signal) {
-    parsedCommnad.signal = 'SIGTERM';
+  if (!parsedCommand.signal) {
+    parsedCommand.signal = 'SIGTERM';
   }
   
-  runnerInfo.signals.push(parsedCommnad.signal);
+  runnerInfo.signals.push(parsedCommand.signal);
   
   runnerInfo.waitAlive(/**
      * @param {any} argument

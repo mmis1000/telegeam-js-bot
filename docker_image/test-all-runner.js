@@ -5,7 +5,7 @@ const helper = require("./test-helper");
 
 fs.readdir('./test', function (err, names) {
     var JSONFileNames = names.filter(function (name) {
-        if (!name.match(/\.json$|\.template$/)) console.error('found a file that neiter a templete and a json: ' + name)
+        if (!name.match(/\.json$|\.template$/)) console.error('found a file that neither a template and a json: ' + name)
         return /\.json/.test(name);
     })
     var JSONTexts = JSONFileNames.map(function (name) {

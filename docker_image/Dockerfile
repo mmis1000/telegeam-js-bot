@@ -14,12 +14,12 @@ ENV KOTLIN_VERSION=1.4.20
 RUN sed --in-place "s/httpredir.debian.org/$APT_MIRROR/g" /etc/apt/sources.list \
     && sed --in-place "s/deb.debian.org/$APT_MIRROR/g" /etc/apt/sources.list
 
-# 0. install eatmydata
+# install eatmydata
 RUN apt-get update -y \
     && apt-get install -y eatmydata \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# 1. install common utils
+# install common utils
 RUN apt-get update -y \
     && eatmydata apt-get install -y apt-utils \
                        sudo \
@@ -33,74 +33,74 @@ RUN apt-get update -y \
                        software-properties-common \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# 2. install build essential for c and cpp
+# install build essential for c and cpp
 RUN apt-get update -y \
     && eatmydata apt-get install -y build-essential \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# 3. install python 2 and 3
+# install python 2 and 3
 RUN apt-get update -y \
     && eatmydata apt-get install -y python3 \
                           python2.7 \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# 4. install node.js  
+# install node.js  
 RUN curl -sL https://deb.nodesource.com/setup_14.x | eatmydata bash - \
     && apt-get -y update \
     && eatmydata apt-get install -y nodejs \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# 7. install java
+# install java
 RUN apt-get -y update \
     && eatmydata apt-get -y --no-install-recommends install openjdk-11-jdk \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# 8. install php
+# install php
 RUN apt-get -y update \
     && eatmydata apt-get install -y php7.3-cli \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# 9. add golang
+# add golang
 RUN apt-get -y update \
     && eatmydata apt-get install -y golang \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# 10. add rust lang
+# add rust lang
 RUN curl https://sh.rustup.rs -sSf |  sh -s -- -y \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# 11. add clisp
+# add clisp
 RUN apt-get -y update \
     && eatmydata apt-get install -y sbcl \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# 12. add lua
+# add lua
 RUN apt-get -y update \
     && eatmydata apt-get install -y lua5.3 \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# 13. add csharp and probably other .net based language
+# add csharp and probably other .net based language
 RUN apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 3FA7E0328081BFF6A14DA29AA6A19B38D3D831EF \
     && echo "deb https://download.mono-project.com/repo/debian stable-buster main" | sudo tee /etc/apt/sources.list.d/mono-official-stable.list \
     && apt-get -y update \
     && eatmydata apt-get install -y mono-xbuild mono-mcs mono-devel \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# 15. add vb
+# add vb
 RUN apt-get -y update \
     && eatmydata apt-get install -y mono-vbnc \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# 14. add ruby
+# add ruby
 RUN apt-get -y update \
     && eatmydata apt-get install -y ruby \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
-# 16. add fsharp
+# add fsharp
 RUN apt-get -y update \
     && eatmydata apt-get install -y fsharp \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# 17. add haskell
+# add haskell
 RUN apt-get -y update \
     && eatmydata apt-get install -y haskell-platform \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
@@ -112,7 +112,7 @@ RUN cd /usr/lib && \
     rm kotlin-compiler-*.zip && \
     rm -f kotlinc/bin/*.bat
 
-# 18. add swift
+# add swift
 RUN apt-get -y update \
     && apt-get install -y libncurses5 clang libcurl4 libpython2.7 libpython2.7-dev \
     && wget https://swift.org/builds/swift-5.1.3-release/ubuntu1804/swift-5.1.3-RELEASE/swift-5.1.3-RELEASE-ubuntu18.04.tar.gz \
@@ -123,19 +123,19 @@ RUN apt-get -y update \
 
 ENV PATH /opt/swift/usr/bin:$PATH
 
-# 19. add scala
+# add scala
 RUN apt-get -y update \
     && eatmydata apt-get install -y scala \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
     
-# 20. Install wine and related packages
+# Install wine and related packages
 RUN dpkg --add-architecture i386 \
     && apt-get update \
 	&& eatmydata apt-get install -y --no-install-recommends wine \
 	                                              wine32 \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# 21. Use the latest version of winetricks
+# Use the latest version of winetricks
 RUN curl -SL 'https://raw.githubusercontent.com/Winetricks/winetricks/master/src/winetricks' -o /usr/local/bin/winetricks \
 	&& chmod +x /usr/local/bin/winetricks
 
@@ -174,11 +174,11 @@ RUN chown -R root:root $NVM_DIR/versions/v$NODE_VERSION/
 # Replace shell back
 RUN rm /bin/sh && mv /bin/sh_backup /bin/sh
 
-# 22. install brainfuck
+# install brainfuck
 RUN npm install -y -g brainless; \
     npm cache clean --force && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# 23. install coffee script
+# install coffee script
 RUN npm install -y -g coffee-script; \
     npm cache clean --force && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
@@ -211,7 +211,7 @@ USER root
 WORKDIR /app/
 RUN mkdir app
 
-# 25. install my own time
+# install my own time
 RUN apt-get update \
     && eatmydata apt-get install -y automake texinfo git libcap-dev \
     && mkdir gnu_time\
