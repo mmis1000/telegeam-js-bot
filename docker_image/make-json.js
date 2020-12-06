@@ -6,8 +6,8 @@ fs.readdir('./test', function (err, names) {
         return console.error(err.stack);
     }
     names = names.filter(function (name) {
-        if (!name.match(/\.json$|\.templete$/)) console.error('found a file that neiter a templete and a json: ' + name)
-        return /\.templete$/.test(name);
+        if (!name.match(/\.json$|\.template$/)) console.error('found a file that neiter a templete and a json: ' + name)
+        return /\.template$/.test(name);
     })
     names.forEach(function (name) {
         fs.readFile(path.resolve('./test', name), { encoding: 'utf-8' } ,function (err, data) {
@@ -15,9 +15,9 @@ fs.readdir('./test', function (err, names) {
                 return console.error(name + ': ' + err.stack);
             }
 
-            console.log('generated ' + name.replace(/\.templete$/, '.json'));
-            fs.writeFile(path.resolve('./test', name.replace(/\.templete$/, '.json')), JSON.stringify({
-                type: name.replace(/\.templete$/, ''),
+            console.log('generated ' + name.replace(/\.template$/, '.json'));
+            fs.writeFile(path.resolve('./test', name.replace(/\.template$/, '.json')), JSON.stringify({
+                type: name.replace(/\.template$/, ''),
                 program: data
             }) + '\n', function (err) {
                 if (err) {
