@@ -99,6 +99,7 @@ export type SessionContext =
 
 export type Session = {
     id: string
+    type: string
     args: any[],
     state: ContinuableState
 }

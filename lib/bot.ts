@@ -10,6 +10,7 @@ import { runContinuable } from "./continuable";
 import { createContinuableContext, createStaticContext } from "./session-context";
 import { RepositorySession } from "./repository/session";
 import { Session } from "./interfaces";
+import { sessionCreateQuest } from "./session/create-quest";
 
 function guidGenerator() {
     let S4 = function() {
@@ -100,10 +101,15 @@ fs.readdir('./docker_image/test', async function (err, files) {
     }
 })
 
+const sessionTypes = {
+    'test': sessionTest,
+    'createQuest': sessionCreateQuest
+}
+
 async function continueSession(api: TelegramBot, session: Session) {
     try {
         await runContinuable(
-            sessionTest as any,
+            (sessionTypes as any)[session.type],
             createStaticContext(api),
             createContinuableContext(api),
             session.state,
@@ -137,8 +143,8 @@ api.on('message', function(message) {
     if (!message) return;
     if (!message.from) return;
     if (!botInfo) return
-    console.log('got message');
-    console.log(message);
+    // console.log('got message');
+    // console.log(message);
 
     const userFrom = message.from
 
@@ -188,11 +194,26 @@ Currently supported: ${runnerList.map(function (i) {return i.type}).join(', ')}
         const sessionId = Math.random().toString(16).slice(2)
 
         runContinuable(
-            sessionTest,
+            sessionTypes.test,
             createStaticContext(api),
             createContinuableContext(api),
             null,
-            (s) => sessionRepo.set({ id: sessionId, state: s, args: [message] }),
+            (s) => sessionRepo.set({ id: sessionId, state: s, type: 'test', args: [message] }),
+            message
+        )
+        .catch(catchHandle)
+        .then(() => sessionRepo.delete(sessionId))
+    }
+
+    if (message.text != undefined && message.text.match(/\/create_quest(@[^\s]+)?$/)) {
+        const sessionId = Math.random().toString(16).slice(2)
+
+        runContinuable(
+            sessionTypes.createQuest,
+            createStaticContext(api),
+            createContinuableContext(api),
+            null,
+            (s) => sessionRepo.set({ id: sessionId, state: s, type: 'createQuest', args: [message] }),
             message
         )
         .catch(catchHandle)
