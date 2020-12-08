@@ -96,9 +96,11 @@ export class RepositorySession implements IRepositorySession {
     }
 
     set(session: Session): Promise<void> {
+        const serialized = TSON.stringify(session, undefined, 4)
+
         return this.execute(session.id, 'set', async () => {
             const fullPath = path.resolve(this.directory, session.id + '.json')
-            return await fs.writeFile(fullPath, TSON.stringify(session, undefined, 4))
+            return await fs.writeFile(fullPath, serialized)
         })
     }
 
