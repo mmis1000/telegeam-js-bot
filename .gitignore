@@ -37,3 +37,9 @@ config.js
 
 # compile output
 *.out
+
+# build outputs
+build/*
+
+# dev file session
+sessions

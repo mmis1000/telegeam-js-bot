@@ -1,11 +1,15 @@
-// @ts-check
-const fs = require("fs");
-const path = require("path");
-const runner = require("./runner");
+import fs = require("fs");
+import path = require("path");
+import runner = require("./runner");
 
-const config = require("../config");
-const TelegramBot = require('node-telegram-bot-api');
-const request = require('request');
+import config = require("../config");
+import TelegramBot = require('node-telegram-bot-api');
+import request = require('request');
+import { sessionTest } from "./session/test";
+import { runContinuable } from "./continuable";
+import { createContinuableContext, createStaticContext } from "./session-context";
+import { RepositorySession } from "./repository/session";
+import { Session } from "./interfaces";
 
 function guidGenerator() {
     let S4 = function() {
@@ -21,25 +25,22 @@ engine.on('destroyed', function () {
     engine = runner.createEngine();
 })
 
-/** @type {TelegramBot.User | null} */
-let botInfo = null;
+let botInfo: TelegramBot.User | null = null;
 
-/**
- * @type {{ type: string, program: string }[]}
- */
-let runnerList = [];
+let runnerList: { type: string; program: string; }[] = [];
 let maxTry = 3;
 let coolDown = 60 * 1000; // +3 minute;
 
 /**
  * @type {Map<number, import('./interfaces').EngineRunner>}
  */
-let chatRooms = new Map();
+let chatRooms: Map<number, import('./interfaces').EngineRunner> = new Map();
 
 /**
  * @type {Record<string, number>}
  */
-let quotas = {};
+let quotas: Record<string, number> = {};
+
 setInterval(function (argument) {
     let id;
     for (id in quotas) {
@@ -51,7 +52,9 @@ setInterval(function (argument) {
     }
 }, coolDown)
 
-fs.readdir('./docker_image/test', function (err, files) {
+const sessionRepo = new RepositorySession(path.resolve(__dirname, '../sessions'))
+
+fs.readdir('./docker_image/test', async function (err, files) {
     if (err) {
         console.error(err.stack || err.toString());
         process.exit(-1)
@@ -75,39 +78,58 @@ fs.readdir('./docker_image/test', function (err, files) {
     console.log('pastebin - run code snippet from pastebin');
     console.log('pastebin_debug - run code snippet from pastebin with debug output');
     console.log('pastebin_interactive - run code snippet from pastebin in interactive mode');
+
+    try {
+        const data = await api.getMe()
+        console.log(data);
+        botInfo = data;
+
+        const sessions = await sessionRepo.list()
+
+        for (let session of sessions) {
+            continueSession(api, session)
+                .catch(catchHandle)
+        }
+
+        api.startPolling();
+
+
+    } catch (err) {
+        console.error(err);
+        process.exit(1);
+    }
 })
 
-api.getMe()
-.then(function (data) {
-    console.log(data);
-    botInfo = data;
-    api.startPolling();
-})
-.catch(function (err) {
-    console.error(err);
-    process.exit(1);
-});
+async function continueSession(api: TelegramBot, session: Session) {
+    try {
+        await runContinuable(
+            sessionTest as any,
+            createStaticContext(api),
+            createContinuableContext(api),
+            session.state,
+            (s) => sessionRepo.set({ ...session, state: s }),
+            ...session.args
+        )
+    } catch (err) {
+        catchHandle(err)
+    }
 
-/**
- * @param {{ stack: any; }} err
- */
-function catchHandle(err) {
+    await sessionRepo.delete(session.id)
+}
+
+
+function catchHandle(err: { stack: any; }) {
     console.error(err.stack);
 }
-/**
- * @param {string} unsafe
- */
-function escapeHtml(unsafe) {
+
+function escapeHtml(unsafe: string) {
     return unsafe
          .replace(/&/g, "&amp;")
          .replace(/</g, "&lt;")
          .replace(/>/g, "&gt;");
 }
 
-/**
- * @type {Map<number, NonNullable<ReturnType<typeof parseCommand>>>}
- */
-const pendingMessageMap = new Map()
+const pendingMessageMap: Map<number, NonNullable<ReturnType<typeof parseCommand>>> = new Map()
 
 api.on('message', function(message) {
     // message is the parsed JSON data from telegram message
@@ -121,12 +143,12 @@ api.on('message', function(message) {
     const userFrom = message.from
 
     /** @type {TelegramBot.SendMessageOptions | undefined} */
-    let additionOptions
+    let additionOptions: TelegramBot.SendMessageOptions | undefined
     // message.text is the text user sent (if there is)
     let text = message.text;
 
     if (message.text != null && message.reply_to_message != null && pendingMessageMap.has(message.reply_to_message.message_id)) {
-        const options = /** @type {NonNullable<ReturnType<typeof parseCommand>>} */(pendingMessageMap.get(message.reply_to_message.message_id))
+        const options: NonNullable<ReturnType<typeof parseCommand>> = pendingMessageMap.get(message.reply_to_message.message_id)!
 
         let { isInteractive, isHelloWorld, isSilent, language, text } = options
 
@@ -160,6 +182,21 @@ Or run it with /[you favorite language]_debug to see debug message
 Or run /[you favorite language]_hello to view hello world example
 Currently supported: ${runnerList.map(function (i) {return i.type}).join(', ')}
         `, additionOptions).catch(catchHandle);
+    }
+
+    if (message.text != undefined && message.text.match(/\/test(@[^\s]+)?$/)) {
+        const sessionId = Math.random().toString(16).slice(2)
+
+        runContinuable(
+            sessionTest,
+            createStaticContext(api),
+            createContinuableContext(api),
+            null,
+            (s) => sessionRepo.set({ id: sessionId, state: s, args: [message] }),
+            message
+        )
+        .catch(catchHandle)
+        .then(() => sessionRepo.delete(sessionId))
     }
     
     if (message.text != undefined && message.text.match(/^\/pastebin(_i(nteractive)?)?(_d(ebug)?)?(@[^\s]+)?(\s|\r|\n|$)/)) {
@@ -269,7 +306,7 @@ This command will try to fetch the content of the pastebin paste and execute it.
     }
     
     if (message.text != undefined && message.text.match(/^\|/) && chatRooms.has(message.chat.id)) {
-        let runner = /** @type { import('./interfaces').EngineRunner } */(chatRooms.get(message.chat.id));
+        let runner: import('./interfaces').EngineRunner = chatRooms.get(message.chat.id)!;
         
         if (message.text === '||') {
             runner.write(null);
@@ -284,11 +321,7 @@ This command will try to fetch the content of the pastebin paste and execute it.
     }
 })
 
-/**
- * 
- * @param {string} text 
- */
-function parseCommand (text) {
+function parseCommand (text: string) {
     let languageArr = (/^\/([a-z0-9_]+)(?:@[^\s]+)?(?: |\r|\n|$)/).exec(text)
 
     if (!languageArr) {
@@ -323,21 +356,9 @@ function parseCommand (text) {
     }
 }
 
-/**
- * @type {WeakMap<import('./interfaces').EngineRunner, ReturnType<typeof setTimeout>>}
- */
-const timeoutIdMap = new WeakMap()
+const timeoutIdMap: WeakMap<import('./interfaces').EngineRunner, ReturnType<typeof setTimeout>> = new WeakMap()
 
-/**
- * @param {TelegramBot} api
- * @param {TelegramBot.Message} message
- * @param {string} language
- * @param {string} code
- * @param {boolean} isHelloWorld
- * @param {boolean} isSilent
- * @param {boolean} isInteractive
- */
-function executeCode(api, message, language, code, isHelloWorld, isSilent, isInteractive) {
+function executeCode(api: TelegramBot, message: TelegramBot.Message, language: string, code: string, isHelloWorld: boolean, isSilent: boolean, isInteractive: boolean) {
     let additionOptions = {
         reply_to_message_id: message.message_id
     }
@@ -369,14 +390,8 @@ use || to terminate the stdin`, additionOptions).catch(catchHandle);
     let outputLength = 0;
     let outputLimit = isInteractive ? Infinity : 4096;
     let truncated = false;
-    
-    /**
-     * @param {{ sendMessage: (arg0: any, arg1: string, arg2: { parse_mode: 'Markdown' | 'MarkdownV2' | 'HTML' | undefined; reply_to_message_id: any; }) => Promise<any>; }} api
-     * @param {string} text
-     * @param {string} prefix
-     * @param {boolean} flush
-     */
-    function output(api, text, prefix, flush) {
+
+    function output(api: TelegramBot, text: string, prefix: string, flush: boolean) {
         let remainText = text;
         
         while (remainText.length > 3800 || (remainText && flush)) {
@@ -403,8 +418,7 @@ use || to terminate the stdin`, additionOptions).catch(catchHandle);
     }
     
     let stdoutBuffer = '';
-    /** @type {NodeJS.Timeout | null} */
-    let stdoutWaitId = null;
+    let stdoutWaitId: NodeJS.Timeout | null = null;
     runner.on('stdout', function (data) {
         stdoutBuffer += data.text;
         stdoutBuffer = output(api, stdoutBuffer, '', false);
@@ -417,8 +431,7 @@ use || to terminate the stdin`, additionOptions).catch(catchHandle);
     });
     
     let stderrBuffer = '';
-    /** @type {NodeJS.Timeout | null} */
-    let stderrWaitId = null;
+    let stderrWaitId: NodeJS.Timeout | null = null;
     runner.on('stderr', function (data) {
         stderrBuffer += data.text;
         stderrBuffer = output(api, stderrBuffer, '', false);
@@ -482,9 +495,7 @@ use || to terminate the stdin`, additionOptions).catch(catchHandle);
                 if (res.time) {
                     api.sendMessage(
                         message.chat.id, 
-                        res.time.map(/**
-                         * @param {string[]} arr
-                         */function (arr) {
+                        res.time.map(function (arr: string[]) {
                             return arr[0] + ': ' + arr[1];
                         }).join('\n'), 
                         additionOptions

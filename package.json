@@ -4,6 +4,7 @@
   "description": "A bot to evaluate code snippet in docker container, and send it back via telegram",
   "main": "index.js",
   "scripts": {
+    "start": "ts-node --files index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -18,7 +19,10 @@
   "homepage": "https://github.com/mmis1000/telegeam-js-bot",
   "dependencies": {
     "@types/node-telegram-bot-api": "^0.50.4",
-    "node-telegram-bot-api": "^0.50.0"
+    "node-telegram-bot-api": "^0.50.0",
+    "ts-node": "^9.1.0",
+    "typeson": "^5.18.2",
+    "typeson-registry": "^1.0.0-alpha.38"
   },
   "devDependencies": {
     "typescript": "^4.1.2"
