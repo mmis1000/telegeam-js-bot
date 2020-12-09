@@ -1,4 +1,4 @@
-import config = require("../config");
+import config = require("../../config");
 import child_process = require("child_process");
 const spawn = child_process.spawn;
 import events = require('events')
@@ -63,7 +63,7 @@ export function createEngine(name: string = guidGenerator(), opts: { memory?: nu
         }
     })
     
-    let engine: import('./interfaces').Engine = new EventEmitter() as any;
+    let engine: import('../interfaces').Engine = new EventEmitter() as any;
     engine.name = name;
     engine._docker = p;
     engine.destroyed = false;
@@ -92,7 +92,7 @@ export function createEngine(name: string = guidGenerator(), opts: { memory?: nu
     }
 
     engine.run = function(conf) {
-        let runner: import('./interfaces').EngineRunner = new EventEmitter() as any;
+        let runner: import('../interfaces').EngineRunner = new EventEmitter() as any;
         assert.ok(conf.type);
         assert.ok(conf.program);
         

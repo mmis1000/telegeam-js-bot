@@ -66,7 +66,7 @@ const methodsContinuable = {
 
 const filename = resolve(__dirname, 'test.log')
 
-import { runContinuable } from '../lib/continuable';
+import { runContinuable } from '../lib/utils/continuable';
 
 let oldData = null
 

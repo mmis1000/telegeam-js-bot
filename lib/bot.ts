@@ -1,30 +1,19 @@
 import fs = require("fs");
 import path = require("path");
-import runner = require("./runner");
+import runner = require("./utils/docker-engine");
 
 import config = require("../config");
 import TelegramBot = require('node-telegram-bot-api');
 import request = require('request');
 import { sessionTest } from "./session/test";
-import { runContinuable } from "./continuable";
+import { runContinuable } from "./utils/continuable";
 import { createContinuableContext, createStaticContext } from "./session-context";
 import { RepositorySession } from "./repository/session";
 import { Session } from "./interfaces";
 import { sessionCreateQuest } from "./session/create-quest";
-
-function guidGenerator() {
-    let S4 = function() {
-       return (((1+Math.random())*0x10000)|0).toString(16).substring(1);
-    };
-    return (S4()+S4()+"-"+S4()+"-"+S4()+"-"+S4()+"-"+S4()+S4()+S4());
-}
+import { ManagerEngine } from "./manager/engine";
 
 let api = new TelegramBot(config.token)
-
-let engine = runner.createEngine(guidGenerator(), config.engineOpts);
-engine.on('destroyed', function () {
-    engine = runner.createEngine();
-})
 
 let botInfo: TelegramBot.User | null = null;
 
@@ -32,17 +21,9 @@ let runnerList: { type: string; program: string; }[] = [];
 let maxTry = 3;
 let coolDown = 60 * 1000; // +3 minute;
 
-/**
- * @type {Map<number, import('./interfaces').EngineRunner>}
- */
-let chatRooms: Map<number, import('./interfaces').EngineRunner> = new Map();
-
-/**
- * @type {Record<string, number>}
- */
 let quotas: Record<string, number> = {};
 
-setInterval(function (argument) {
+setInterval(function () {
     let id;
     for (id in quotas) {
         quotas[id]--;
@@ -53,7 +34,9 @@ setInterval(function (argument) {
     }
 }, coolDown)
 
-const sessionRepo = new RepositorySession(path.resolve(__dirname, '../sessions'))
+const sessionRepo = new RepositorySession(path.resolve(__dirname, '../', config.session_dir))
+
+let managerEngine: ManagerEngine
 
 fs.readdir('./docker_image/test', async function (err, files) {
     if (err) {
@@ -85,12 +68,16 @@ fs.readdir('./docker_image/test', async function (err, files) {
         console.log(data);
         botInfo = data;
 
+        // Initialize sessions
         const sessions = await sessionRepo.list()
 
         for (let session of sessions) {
             continueSession(api, session)
                 .catch(catchHandle)
         }
+
+        // Initialize engine
+        managerEngine = new ManagerEngine(runnerList, api, config)
 
         api.startPolling();
 
@@ -123,16 +110,8 @@ async function continueSession(api: TelegramBot, session: Session) {
     await sessionRepo.delete(session.id)
 }
 
-
 function catchHandle(err: { stack: any; }) {
     console.error(err.stack);
-}
-
-function escapeHtml(unsafe: string) {
-    return unsafe
-         .replace(/&/g, "&amp;")
-         .replace(/</g, "&lt;")
-         .replace(/>/g, "&gt;");
 }
 
 const pendingMessageMap: Map<number, NonNullable<ReturnType<typeof parseCommand>>> = new Map()
@@ -148,17 +127,15 @@ api.on('message', function(message) {
 
     const userFrom = message.from
 
-    /** @type {TelegramBot.SendMessageOptions | undefined} */
-    let additionOptions: TelegramBot.SendMessageOptions | undefined
-    // message.text is the text user sent (if there is)
-    let text = message.text;
-
     if (message.text != null && message.reply_to_message != null && pendingMessageMap.has(message.reply_to_message.message_id)) {
         const options: NonNullable<ReturnType<typeof parseCommand>> = pendingMessageMap.get(message.reply_to_message.message_id)!
+        let additionOptions = {
+            reply_to_message_id: message.message_id
+        }
 
         let { isInteractive, isHelloWorld, isSilent, language, text } = options
 
-        if (isInteractive && chatRooms.has(message.chat.id)) {
+        if (isInteractive && managerEngine.hasInteractiveSession(message.chat.id)) {
             return api.sendMessage(
                 message.chat.id, 
                 'Please stop current interactive runner first. (by using || to terminate)', 
@@ -173,14 +150,14 @@ api.on('message', function(message) {
         quotas[message.from.id] = quotas[message.from.id] || 0;
         quotas[message.from.id]++;
         
-        return executeCode(api, message, language, message.text, isHelloWorld, isSilent, isInteractive);
+        return managerEngine.executeCode(message, language, message.text, isHelloWorld, isSilent, isInteractive);
     }
     
     if (message.text != undefined && message.text.match(/\/start(@[^\s]+)?$/)) {
-        
         let additionOptions = {
             reply_to_message_id: message.message_id
         }
+
         api.sendMessage(message.chat.id, `
 Hello, I am ${botInfo.first_name} 
 You could run some code snippet with /[you favorite language]
@@ -221,6 +198,9 @@ Currently supported: ${runnerList.map(function (i) {return i.type}).join(', ')}
     }
     
     if (message.text != undefined && message.text.match(/^\/pastebin(_i(nteractive)?)?(_d(ebug)?)?(@[^\s]+)?(\s|\r|\n|$)/)) {
+        let additionOptions = {
+            reply_to_message_id: message.message_id
+        }
         let temp = message.text.split(/\s|\r?\n/g);
         
         if (temp.length != 3) {
@@ -244,7 +224,7 @@ This command will try to fetch the content of the pastebin paste and execute it.
             return;
         }
         
-        if (isInteractive && chatRooms.has(message.chat.id)) {
+        if (isInteractive && managerEngine.hasInteractiveSession(message.chat.id)) {
             return api.sendMessage(
                 message.chat.id, 
                 'Please stop current interactive runner first. (by using || to terminate)', 
@@ -270,14 +250,14 @@ This command will try to fetch the content of the pastebin paste and execute it.
             quotas[userFrom.id] = quotas[userFrom.id] || 0;
             quotas[userFrom.id]++;
         
-            executeCode(api, message, language, body, false, isSilent, isInteractive);
+            managerEngine.executeCode(message, language, body, false, isSilent, isInteractive);
         })
         
         return;
     }
     
     if (message.text != undefined && message.text.match(/^\/[a-z0-9_]+(@[^\s]+)?(\s|\r|\n|$)/)) {
-        additionOptions = {
+        let additionOptions = {
             reply_to_message_id: message.message_id
         }
 
@@ -287,7 +267,7 @@ This command will try to fetch the content of the pastebin paste and execute it.
 
         let { isInteractive, isHelloWorld, isSilent, language, text } = options
 
-        if (isInteractive && chatRooms.has(message.chat.id)) {
+        if (isInteractive && managerEngine.hasInteractiveSession(message.chat.id)) {
             return api.sendMessage(
                 message.chat.id, 
                 'Please stop current interactive runner first. (by using || to terminate)', 
@@ -323,21 +303,14 @@ This command will try to fetch the content of the pastebin paste and execute it.
         quotas[message.from.id] = quotas[message.from.id] || 0;
         quotas[message.from.id]++;
         
-        return executeCode(api, message, language, text, isHelloWorld, isSilent, isInteractive);
+        return managerEngine.executeCode(message, language, text, isHelloWorld, isSilent, isInteractive);
     }
     
-    if (message.text != undefined && message.text.match(/^\|/) && chatRooms.has(message.chat.id)) {
-        let runner: import('./interfaces').EngineRunner = chatRooms.get(message.chat.id)!;
-        
+    if (message.text != undefined && message.text.match(/^\|/) && managerEngine.hasInteractiveSession(message.chat.id)) {
         if (message.text === '||') {
-            runner.write(null);
-            timeoutIdMap.set(runner, setTimeout(function () {
-                console.log('force killing runner ' + runner.id);
-                api.sendMessage(message.chat.id, 'killed due to timeout', additionOptions).catch(catchHandle);
-                runner.kill('SIGKILL');
-            }, 30000))
+            managerEngine.terminateStdin(message.chat.id, message)
         } else {
-            runner.write(message.text.replace(/([^\n])$/, '$1\n').replace(/^\|/, ''));
+            managerEngine.sendStdin(message.chat.id, message.text.replace(/([^\n])$/, '$1\n').replace(/^\|/, ''))
         }
     }
 })
@@ -374,177 +347,5 @@ function parseCommand (text: string) {
         isSilent,
         isInteractive,
         isHelloWorld
-    }
-}
-
-const timeoutIdMap: WeakMap<import('./interfaces').EngineRunner, ReturnType<typeof setTimeout>> = new WeakMap()
-
-function executeCode(api: TelegramBot, message: TelegramBot.Message, language: string, code: string, isHelloWorld: boolean, isSilent: boolean, isInteractive: boolean) {
-    let additionOptions = {
-        reply_to_message_id: message.message_id
-    }
-    
-    if (isHelloWorld) {
-        code = runnerList.filter(function (info) {
-            return info.type === language
-        })[0].program;
-    }
-    
-    let runner = engine.run({
-        type: language,
-        program: code,
-        user: 'debian'
-    })
-    
-    if (isInteractive) {
-        chatRooms.set(message.chat.id, runner);
-        api.sendMessage(message.chat.id, `process started in interactive mode
-use | to prefix your text to send it to stdin
-use || to terminate the stdin`, additionOptions).catch(catchHandle);
-    }
-    
-    if (!isSilent || isHelloWorld) api.sendMessage(message.chat.id, 'running... \n<pre>' + escapeHtml(code) + '</pre>', {
-        parse_mode: 'HTML',
-        reply_to_message_id: message.message_id
-    }).catch(catchHandle);
-    
-    let outputLength = 0;
-    let outputLimit = isInteractive ? Infinity : 4096;
-    let truncated = false;
-
-    function output(api: TelegramBot, text: string, prefix: string, flush: boolean) {
-        let remainText = text;
-        
-        while (remainText.length > 3800 || (remainText && flush)) {
-            let part = remainText.slice(0, 3800);
-            remainText = remainText.slice(3800);
-            
-            if (outputLength < outputLimit) {
-                let max = outputLimit - outputLength;
-                part = part.slice(0, max);
-                outputLength += part.length;
-                
-                api.sendMessage(message.chat.id, prefix + '<pre>' + escapeHtml(part) + '</pre>', {
-                    parse_mode: 'HTML',
-                    reply_to_message_id: message.message_id
-                }).catch(catchHandle);
-            } else {
-                remainText = '';
-                truncated = true;
-            }
-            
-        }
-        
-        return remainText;
-    }
-    
-    let stdoutBuffer = '';
-    let stdoutWaitId: NodeJS.Timeout | null = null;
-    runner.on('stdout', function (data) {
-        stdoutBuffer += data.text;
-        stdoutBuffer = output(api, stdoutBuffer, '', false);
-        if (stdoutBuffer && !stdoutWaitId) {
-            stdoutWaitId = setTimeout(function () {
-                stdoutBuffer = output(api, stdoutBuffer, '', true);
-                stdoutWaitId = null;
-            }, 1000)
-        }
-    });
-    
-    let stderrBuffer = '';
-    let stderrWaitId: NodeJS.Timeout | null = null;
-    runner.on('stderr', function (data) {
-        stderrBuffer += data.text;
-        stderrBuffer = output(api, stderrBuffer, '', false);
-        if (stderrBuffer && !stderrWaitId) {
-            stderrWaitId = setTimeout(function () {
-                stderrBuffer = output(api, stderrBuffer, '', true);
-                stderrWaitId = null;
-            }, 1000)
-        }
-    })
-    
-    runner.on('status', function(data) {
-        if (data.text !== 'exited') {
-            api.sendChatAction(message.chat.id, 'typing').catch(catchHandle);
-        }
-        console.log('status change: ' + data.text)
-    });
-    
-    runner.on('throw', function(data) {
-        api.sendMessage(message.chat.id, 'error: ' + data.text, additionOptions).catch(catchHandle);
-    });
-    
-    runner.on('error', function(data) {
-        api.sendMessage(message.chat.id, 'error: ' + data.text, additionOptions).catch(catchHandle);
-    });
-    
-    if (!isInteractive) {
-        timeoutIdMap.set(runner, setTimeout(function () {
-            console.log('force killing runner ' + runner.id);
-            api.sendMessage(message.chat.id, 'killed due to timeout', additionOptions).catch(catchHandle);
-            runner.kill('SIGKILL');
-        }, 30000))
-    }
-    
-    runner.on('exit', function (data) {
-        const id = timeoutIdMap.get(runner)
-        if (id) {
-            clearTimeout(id);
-        }
-        
-        if (stdoutWaitId) {
-            clearTimeout(stdoutWaitId);
-            stdoutBuffer = output(api, stdoutBuffer, '', true);
-            stdoutWaitId = null;
-        }
-        
-        if (stderrWaitId) {
-            clearTimeout(stderrWaitId);
-            stderrBuffer = output(api, stderrBuffer, '', true);
-            stderrWaitId = null;
-        }
-        
-        if (isInteractive) {
-            chatRooms.delete(message.chat.id);
-        }
-        
-        try {
-            let res = JSON.parse(data.text);
-            
-            if (!isSilent) {
-                if (res.time) {
-                    api.sendMessage(
-                        message.chat.id, 
-                        res.time.map(function (arr: string[]) {
-                            return arr[0] + ': ' + arr[1];
-                        }).join('\n'), 
-                        additionOptions
-                    ).catch(catchHandle);
-                }
-            }
-            
-            if (res.code !== 0 || res.signal != null || !isSilent) {
-                api.sendMessage(
-                    message.chat.id, 
-                    'program ended with code ' + res.code + ' and signal ' + res.signal, 
-                    additionOptions
-                ).catch(catchHandle);
-            } else if (outputLength === 0) {
-                api.sendMessage(
-                    message.chat.id, 
-                    'program ended with code ' + res.code + ' and signal ' + res.signal + ' but doesn\'t has any output at all', 
-                    additionOptions
-                ).catch(catchHandle);
-            }
-        } catch (e) {
-            console.error(e);
-        }
-    })
-    
-    if (!isSilent) {
-        runner.on('log', function(data) {
-            api.sendMessage(message.chat.id, 'info: ' + data.text, additionOptions).catch(catchHandle);
-        });
     }
 }

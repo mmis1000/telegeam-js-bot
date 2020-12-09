@@ -3,7 +3,7 @@ import {
     ContinuableContext
 } from '../lib/interfaces'
 
-import { runContinuable } from '../lib/continuable'
+import { runContinuable } from '../lib/utils/continuable'
 
 const a = {
     async sendMessage(msg: string) {

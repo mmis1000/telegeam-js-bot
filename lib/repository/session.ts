@@ -1,7 +1,7 @@
 import { IRepositorySession, Session } from "../interfaces";
 import { promises as fs } from 'fs'
 import * as path from 'path'
-import { TSON } from "../tson";
+import { TSON } from "../utils/tson";
 
 type op = {
     session: string,
