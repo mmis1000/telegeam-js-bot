@@ -1,4 +1,4 @@
-import type { Engine } from '../interfaces';
+import type { Engine, EngineRunner } from '../interfaces';
 import type * as Config from '../../config';
 import type * as TelegramBot from 'node-telegram-bot-api'
 import runner = require("../utils/docker-engine");
@@ -54,12 +54,20 @@ export class ManagerEngine {
         const runner =  this.chatRooms.get(roomId)
         if (runner) {
             runner.write(null);
-            this.timeoutIdMap.set(runner, setTimeout(() => {
-                console.log('force killing runner ' + runner.id);
-                this.api.sendMessage(message.chat.id, 'killed due to timeout').catch(catchHandle);
-                runner.kill('SIGKILL');
-            }, 30000))
+            this.scheduleKill(runner, message)
         }
+    }
+
+    scheduleKill (runner: EngineRunner,message: TelegramBot.Message) {
+        if (this.timeoutIdMap.has(runner)) {
+            return // already scheduled
+        }
+
+        this.timeoutIdMap.set(runner, setTimeout(() => {
+            console.log('force killing runner ' + runner.id);
+            this.api.sendMessage(message.chat.id, 'killed due to timeout').catch(catchHandle);
+            runner.kill('SIGKILL');
+        }, 30000))
     }
 
     executeCode(message: TelegramBot.Message, language: string, code: string, isHelloWorld: boolean, isSilent: boolean, isInteractive: boolean) {
@@ -163,11 +171,7 @@ export class ManagerEngine {
         });
         
         if (!isInteractive) {
-            this.timeoutIdMap.set(runner, setTimeout(() => {
-                console.log('force killing runner ' + runner.id);
-                this.api.sendMessage(message.chat.id, 'killed due to timeout', additionOptions).catch(catchHandle);
-                runner.kill('SIGKILL');
-            }, 30000))
+            this.scheduleKill(runner, message)
         }
         
         runner.on('exit', (data) => {

@@ -246,6 +246,14 @@ This command will try to fetch the content of the pastebin paste and execute it.
             if (quotas[userFrom.id] >= maxTry) {
                 return api.sendMessage(message.chat.id, 'Sorry! You are out of your quota ( ' + maxTry + ' times / ' + maxTry * coolDown / 1000 + ' second ). Please retry later.', additionOptions).catch(catchHandle);
             }
+
+            if (isInteractive && managerEngine.hasInteractiveSession(message.chat.id)) {
+                return api.sendMessage(
+                    message.chat.id, 
+                    'Please stop current interactive runner first. (by using || to terminate)', 
+                    additionOptions
+                ).catch(catchHandle);
+            }
             
             quotas[userFrom.id] = quotas[userFrom.id] || 0;
             quotas[userFrom.id]++;

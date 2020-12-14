@@ -2,19 +2,18 @@ import { IRepositorySession, Session } from "../interfaces";
 import { promises as fs } from 'fs'
 import * as path from 'path'
 import { TSON } from "../utils/tson";
+import { findOrCreate } from "../utils/array-util";
+import { Runnable } from '../utils/runnable'
 
 type op = {
     session: string,
     type: string,
-    fn: (...args: any[]) => Promise<any>,
     resolveCallbacks: ((arg: any)=>void)[],
-    rejectCallbacks: ((arg: any)=>void)[]
+    rejectCallbacks: ((arg: any)=>void)[],
+    fn: (...args: any[]) => Promise<any>
 }
 
 export class RepositorySession implements IRepositorySession {
-    private running: boolean = false
-    private pendingOps: op[] = []
-
     constructor(private directory: string) {
         this.execute('', 'prepare', async () => {
             try {
@@ -25,42 +24,35 @@ export class RepositorySession implements IRepositorySession {
         })
     }
 
-    private async startRun () {
-        this.running = true
-        let currentTask: op | undefined
-        while (currentTask = this.pendingOps.shift()) {
-            if (currentTask != null) {
-                try {
-                    const res = await currentTask.fn()
-                    currentTask.resolveCallbacks.forEach(it => it(res))
-                } catch (err) {
-                    currentTask.rejectCallbacks.forEach(it => it(err))
-                }
-            }
+    private runner = new Runnable<op>(async currentTask => {
+        try {
+            const res = await currentTask.fn()
+            currentTask.resolveCallbacks.forEach(it => it(res))
+        } catch (err) {
+            currentTask.rejectCallbacks.forEach(it => it(err))
         }
-        this.running = false
-    }
+    })
 
     private execute<U> (session: string, type: string, fn: (...args: any[]) => Promise<any>): Promise<U> {
-        const oldTask = this.pendingOps.find(it => it.session === session && it.type === type)
-        const currentTask: op = oldTask ?? {
-            session,
-            type,
-            fn,
-            resolveCallbacks: [],
-            rejectCallbacks: []
-        }
+        return this.runner.updateQueue(ops => {
+            const currentTask: op = findOrCreate(
+                ops,
+                it => it.session === session && it.type === type,
+                () => ({
+                    session,
+                    type,
+                    fn,
+                    resolveCallbacks: [],
+                    rejectCallbacks: []
+                })
+            )
 
-        if (oldTask == null) {
-            this.pendingOps.push(currentTask)
-        }
-
-        return new Promise((resolve, reject) => {
-            currentTask.resolveCallbacks.push(resolve)
-            currentTask.rejectCallbacks.push(reject)
-            if (!this.running) {
-                this.startRun()
-            }
+            return new Promise<U>((resolve, reject) => {
+                // just replace old task
+                currentTask.fn = fn
+                currentTask.resolveCallbacks.push(resolve)
+                currentTask.rejectCallbacks.push(reject)
+            })
         })
     }
 
