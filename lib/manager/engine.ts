@@ -1,7 +1,9 @@
 import type { Engine, EngineRunner } from '../interfaces';
 import type * as Config from '../../config';
-import type * as TelegramBot from 'node-telegram-bot-api'
+import * as TelegramBot from 'node-telegram-bot-api'
 import runner = require("../utils/docker-engine");
+import { Runnable } from '../utils/runnable';
+import c = require('../../docker_image/runner/c');
 
 function escapeHtml(unsafe: string) {
     return unsafe
@@ -21,10 +23,56 @@ function guidGenerator() {
     return (S4()+S4()+"-"+S4()+"-"+S4()+"-"+S4()+"-"+S4()+S4()+S4());
 }
 
+// how long before the bot should just split the message
+const MERGE_MESSAGE_LIMIT = 4000
+
+// how long before the bot should just split the message
+const LENGTH_LIMIT = 7800
+
+const BEFORE_SEND_INTERVAL = 1 * 1000
+// delay after it send ant message
+const WAIT_INTERVAL = 2 * 1000
+// delay after it receive 429 error
+const WAIT_429_INTERVAL = 20 * 1000
+
+type messageSnippet = {
+    label?: string,
+    message: string
+}
+
+type SendInfo = {
+    type: 'text',
+    message: string,
+    sendOptions?: TelegramBot.SendMessageOptions,
+    resolveFunctions?: ((...args: any[]) => any)[],
+    rejectFunctions?: ((...args: any[]) => any)[]
+} | {
+    type: 'text-merged',
+    messages: messageSnippet[],
+    /** 
+     * used only when it is sending instead of patching.
+     * reply_mode will ignored, text will be encoded
+     */
+    sendOptions?: TelegramBot.SendMessageOptions,
+    resolveFunctions?: ((...args: any[]) => any)[],
+    rejectFunctions?: ((...args: any[]) => any)[]
+} | {
+    type: 'wait',
+    length: number,
+    resolveFunctions?: ((...args: any[]) => any)[],
+    rejectFunctions?: ((...args: any[]) => any)[]
+} | {
+    // separate the group
+    type: 'separate',
+    resolveFunctions?: ((...args: any[]) => any)[],
+    rejectFunctions?: ((...args: any[]) => any)[]
+}
+
 export class ManagerEngine {
     private engine: Engine
     private chatRooms: Map<number, import('../interfaces').EngineRunner> = new Map();
     private timeoutIdMap:  WeakMap<import('../interfaces').EngineRunner, ReturnType<typeof setTimeout>> = new WeakMap()
+    private messageQueues = new Map<number, Runnable<SendInfo>>()
 
     constructor (
         private runnerList: { type: string; program: string; }[],
@@ -38,12 +86,301 @@ export class ManagerEngine {
         
     }
 
+    getRunner (group: number) {
+        if (this.messageQueues.has(group)) {
+            return this.messageQueues.get(group)!
+        }
+
+        const countStrLength = (str: string) => {
+            let length = 0
+            for (let s of str) {
+                if (s === '>' || s === '<' ) {
+                    length += 4
+                } else if (s === '&') {
+                    length += 5
+                } else {
+                    length += s.length
+                }
+            }
+            return length
+        }
+
+        const countLength = (arg:messageSnippet[]) => {
+            let length = 0
+            for (let seg of arg) {
+                if (seg.label != null) {
+                    // 11 => <pre></pre>
+                    length += (11 + countStrLength(seg.label))
+                }
+
+                length += countStrLength(seg.message)
+                // 2 => \n\n
+                length += 2
+            }
+            return length
+        }
+
+        const formalizeMessage = (msgs: messageSnippet[]) => {
+            const out = []
+            let prev: messageSnippet | null = null
+
+            for (let item of msgs) {
+                if (prev != null && item.label === prev!.label) {
+                    prev!.message += item.message
+                } else {
+                    const clone = {
+                        ...item
+                    }
+                    out.push(clone)
+                    prev = clone
+                }
+            }
+
+            return out
+        }
+
+        const groupMessage = (msgs: messageSnippet[], limit: number) => {
+            type labeledMessageGroup = {
+                full: boolean,
+                group: messageSnippet[]
+            }
+            const formatted = formalizeMessage(msgs)
+            let currentLength = 0
+            let grouped: labeledMessageGroup[] = []
+            let currentGroup: labeledMessageGroup = {
+                full: false,
+                group: []
+            }
+
+            grouped.push(currentGroup)
+
+            for (let item of formatted) {
+                const newLength = countLength(formalizeMessage([...currentGroup.group, item]))
+                if (newLength < limit - 100) {
+                    // not full yet
+                    currentLength = newLength
+                    currentGroup.group.push(item)
+                } else if (newLength < limit) {
+                    // finish the group gracefully
+                    currentLength = 0
+                    currentGroup.group.push(item)
+                    currentGroup.full = true
+                    currentGroup = {
+                        full: false,
+                        group: []
+                    }
+                    grouped.push(currentGroup)
+                } else {
+                    // cut it
+
+                    const overflow = newLength - limit
+
+                    const captured: messageSnippet = {
+                        label: item.label,
+                        message: item.message.slice(0, item.message.length - overflow)
+                    }
+
+                    currentGroup.group.push(captured)
+
+                    const remain: messageSnippet = {
+                        label: item.label,
+                        message: item.message.slice(-overflow)
+                    }
+                    
+                    formatted.push(remain)
+
+                    currentLength = 0
+                    currentGroup.full = true
+                    currentGroup = {
+                        full: false,
+                        group: []
+                    }
+                    grouped.push(currentGroup)
+                }
+            }
+
+            if (grouped[grouped.length - 1]!.group.length === 0) {
+                grouped.pop()
+            }
+
+            return grouped
+        }
+
+        const formatMessage = (msgs: messageSnippet[]) => {
+            let msg = ''
+            for (let item of msgs) {
+                if (item.label != null) {
+                    msg += escapeHtml(item.label)
+                }
+                msg += '<pre>'
+                msg += escapeHtml(item.message)
+                msg += '</pre>'
+            }
+            return msg
+        }
+
+        let lastMergedMessage: messageSnippet[] = []
+        let lastMergedMessageId: number | null = null
+
+        const sleep = (time: number) => new Promise<void>((r) => {
+            setTimeout(() => r(), time)
+        })
+
+        const runner = new Runnable<SendInfo>(async (task, queue) => {
+            const handleError = (err: any) => {
+                if (err instanceof (TelegramBot as any).errors.TelegramError) {
+                    const response: import('http').IncomingMessage = err.response
+
+                    // wait and redo
+                    if (response.statusCode === 429) {
+                        queue.unshift(task)
+                        queue.unshift({
+                            type: 'wait',
+                            length: WAIT_429_INTERVAL
+                        })
+                    }
+                } else {
+                    ;(task.rejectFunctions ?? []).forEach(it => it(err))
+                }
+            }
+            if (task.type === 'separate') {
+                lastMergedMessage = []
+                lastMergedMessageId = null
+            } if (task.type === 'wait') {
+                return sleep(task.length)
+            } else if (task.type === 'text-merged') {
+                try {
+                    let res: any
+                    const [first, ...remain] = groupMessage([...lastMergedMessage, ...task.messages], MERGE_MESSAGE_LIMIT)
+                    
+                    if (lastMergedMessageId != null) {
+                        res = await this.api.editMessageText(formatMessage(first.group), {
+                            chat_id: group,
+                            message_id: lastMergedMessageId,
+                            parse_mode: 'HTML'
+                        })
+
+                        if (first.full) {
+                            lastMergedMessageId = null
+                            lastMergedMessage = []
+                        } else {
+                            lastMergedMessage = first.group
+                        }
+                    } else {
+                        res = await this.api.sendMessage(group, formatMessage(first.group), {
+                            ...task.sendOptions,
+                            parse_mode: 'HTML'
+                        })
+                        if (!first.full) {
+                            lastMergedMessageId = res.message_id
+                            lastMergedMessage = first.group
+                        } else {
+                            lastMergedMessageId = null
+                            lastMergedMessage = []
+                        }
+                    }
+
+                    if (remain.length >= 0) {
+                        queue.unshift({
+                            // also pass the resolveFunctions...etc to it
+                            ...task,
+                            messages: remain.flatMap(i => i.group)
+                        })
+                    } else {
+                        await sleep(WAIT_INTERVAL)
+                        ;(task.resolveFunctions ?? []).forEach(it => it(res))
+                    }
+                } catch (err) {
+                    handleError(err)
+                }
+            } else if (task.type === 'text') {
+                try {
+                    lastMergedMessage = []
+                    lastMergedMessageId = null
+                    const message = await this.api.sendMessage(group, task.message, task.sendOptions)
+                    await sleep(WAIT_INTERVAL)
+                    ;(task.resolveFunctions ?? []).forEach(it => it(message))
+                } catch (err) {
+                    handleError(err)
+                }
+            }
+        })
+
+        this.messageQueues.set(group, runner)
+        return runner
+    }
+
+    sendLabeledMessage(group: number, text: string, label: string, options?: TelegramBot.SendMessageOptions) {
+        return new Promise<TelegramBot.Message>((resolve, reject) => {
+            this.getRunner(group).updateQueue(queue => {
+                const last = queue[queue.length - 1]
+                if (last && last.type === 'text-merged') {
+                    last.messages.push({
+                        label: label,
+                        message: text
+                    })
+                    last.resolveFunctions = last.resolveFunctions || []
+                    last.resolveFunctions!.push(resolve)
+                    last.rejectFunctions = last.rejectFunctions || []
+                    last.rejectFunctions!.push(reject)
+                } else {
+                    queue.push({
+                        type: 'text-merged',
+                        messages: [{
+                            label: label,
+                            message: text
+                        }],
+                        sendOptions: options,
+                        resolveFunctions: [resolve],
+                        rejectFunctions: [reject]
+                    })
+                }
+            })
+        })
+    }
+
+    sendMessage(group: number, text: string, options?: TelegramBot.SendMessageOptions) {
+        return new Promise<TelegramBot.Message>((resolve, reject) => {
+            this.getRunner(group).updateQueue(queue => {
+                queue.push({
+                    type: 'text',
+                    message: text,
+                    sendOptions: options,
+                    resolveFunctions: [resolve],
+                    rejectFunctions: [reject]
+                })
+            })
+        })
+    }
+
+    wait(group: number, time: number) {
+        return new Promise<TelegramBot.Message>((resolve, reject) => {
+            this.getRunner(group).updateQueue(queue => {
+                queue.push({
+                    type: 'wait',
+                    length: time
+                })
+            })
+        })
+    }
+
+    stopGroup(group: number) {
+        return new Promise<TelegramBot.Message>((resolve, reject) => {
+            this.getRunner(group).updateQueue(queue => {
+                queue.push({
+                    type: 'separate'
+                })
+            })
+        })
+    }
+
     hasInteractiveSession(roomId: number) {
         return this.chatRooms.has(roomId)
     }
 
 
     sendStdin(roomId: number, input: any) {
+        this.stopGroup(roomId)
         const runner =  this.chatRooms.get(roomId)
         if (runner) {
             runner.write(input)
@@ -51,6 +388,7 @@ export class ManagerEngine {
     }
 
     terminateStdin(roomId: number, message: TelegramBot.Message) {
+        this.stopGroup(roomId)
         const runner =  this.chatRooms.get(roomId)
         if (runner) {
             runner.write(null);
@@ -65,7 +403,7 @@ export class ManagerEngine {
 
         this.timeoutIdMap.set(runner, setTimeout(() => {
             console.log('force killing runner ' + runner.id);
-            this.api.sendMessage(message.chat.id, 'killed due to timeout').catch(catchHandle);
+            this.sendMessage(message.chat.id, 'killed due to timeout').catch(catchHandle);
             runner.kill('SIGKILL');
         }, 30000))
     }
@@ -89,72 +427,73 @@ export class ManagerEngine {
         
         if (isInteractive) {
             this.chatRooms.set(message.chat.id, runner);
-            this.api.sendMessage(message.chat.id, `process started in interactive mode
+            this.sendMessage(message.chat.id, `process started in interactive mode
     use | to prefix your text to send it to stdin
     use || to terminate the stdin`, additionOptions).catch(catchHandle);
         }
         
-        if (!isSilent || isHelloWorld) this.api.sendMessage(message.chat.id, 'running... \n<pre>' + escapeHtml(code) + '</pre>', {
-            parse_mode: 'HTML',
-            reply_to_message_id: message.message_id
-        }).catch(catchHandle);
-        
-        let outputLength = 0;
-        let outputLimit = isInteractive ? Infinity : 4096;
-        let truncated = false;
-    
-        function output(api: TelegramBot, text: string, prefix: string, flush: boolean) {
-            let remainText = text;
-            
-            while (remainText.length > 3800 || (remainText && flush)) {
-                let part = remainText.slice(0, 3800);
-                remainText = remainText.slice(3800);
-                
-                if (outputLength < outputLimit) {
-                    let max = outputLimit - outputLength;
-                    part = part.slice(0, max);
-                    outputLength += part.length;
-                    
-                    api.sendMessage(message.chat.id, prefix + '<pre>' + escapeHtml(part) + '</pre>', {
-                        parse_mode: 'HTML',
-                        reply_to_message_id: message.message_id
-                    }).catch(catchHandle);
-                } else {
-                    remainText = '';
-                    truncated = true;
-                }
-                
-            }
-            
-            return remainText;
+        if (!isSilent || isHelloWorld) {
+            this.sendMessage(message.chat.id, 'running... \n<pre>' + escapeHtml(code) + '</pre>', {
+                parse_mode: 'HTML',
+                reply_to_message_id: message.message_id
+            }).catch(catchHandle);
         }
         
-        let stdoutBuffer = '';
-        let stdoutWaitId: NodeJS.Timeout | null = null;
+        let outputLength = 0;
+        let outputLimit = isInteractive ? Infinity : LENGTH_LIMIT;
+        let truncated = false;
+    
+        this.stopGroup(message.chat.id)
+        this.wait(message.chat.id, BEFORE_SEND_INTERVAL)
+
         runner.on('stdout', (data) => {
-            stdoutBuffer += data.text;
-            stdoutBuffer = output(this.api, stdoutBuffer, '', false);
-            if (stdoutBuffer && !stdoutWaitId) {
-                stdoutWaitId = setTimeout(() => {
-                    stdoutBuffer = output(this.api, stdoutBuffer, '', true);
-                    stdoutWaitId = null;
-                }, 1000)
+            if (truncated) return;
+
+            if (outputLength + data.text.length <= outputLimit) {
+                outputLength += data.text.length
+
+                this.sendLabeledMessage(message.chat.id, data.text, 'Stdout: ', {
+                    reply_to_message_id: message.message_id
+                }).catch(catchHandle);
+            } else {
+                const text = data.text.slice(0, outputLimit - outputLength)
+                outputLength = outputLimit
+                truncated = true
+
+                this.sendLabeledMessage(message.chat.id, text, 'Stdout: ', {
+                    reply_to_message_id: message.message_id
+                }).catch(catchHandle);
+
+                this.sendLabeledMessage(message.chat.id, 'Some text was truncated because output is too long', 'Error: ', {
+                    reply_to_message_id: message.message_id
+                }).catch(catchHandle);
             }
         });
-        
-        let stderrBuffer = '';
-        let stderrWaitId: NodeJS.Timeout | null = null;
+
         runner.on('stderr', (data) => {
-            stderrBuffer += data.text;
-            stderrBuffer = output(this.api, stderrBuffer, '', false);
-            if (stderrBuffer && !stderrWaitId) {
-                stderrWaitId = setTimeout(() => {
-                    stderrBuffer = output(this.api, stderrBuffer, '', true);
-                    stderrWaitId = null;
-                }, 1000)
+            if (truncated) return;
+
+            if (outputLength + data.text.length <= outputLimit) {
+                outputLength += data.text.length
+
+                this.sendLabeledMessage(message.chat.id, data.text, 'Stderr: ', {
+                    reply_to_message_id: message.message_id
+                }).catch(catchHandle);
+            } else {
+                const text = data.text.slice(0, outputLimit - outputLength)
+                outputLength = outputLimit
+                truncated = true
+
+                this.sendLabeledMessage(message.chat.id, text, 'Stderr: ', {
+                    reply_to_message_id: message.message_id
+                }).catch(catchHandle);
+
+                this.sendLabeledMessage(message.chat.id, 'Some text was truncated because output is too long', 'Error: ', {
+                    reply_to_message_id: message.message_id
+                }).catch(catchHandle);
             }
         })
-        
+
         runner.on('status', (data) => {
             if (data.text !== 'exited') {
                 this.api.sendChatAction(message.chat.id, 'typing').catch(catchHandle);
@@ -163,11 +502,11 @@ export class ManagerEngine {
         });
         
         runner.on('throw', (data) => {
-            this.api.sendMessage(message.chat.id, 'error: ' + data.text, additionOptions).catch(catchHandle);
+            this.sendMessage(message.chat.id, 'Error: ' + data.text, additionOptions).catch(catchHandle);
         });
         
         runner.on('error', (data) => {
-            this.api.sendMessage(message.chat.id, 'error: ' + data.text, additionOptions).catch(catchHandle);
+            this.sendMessage(message.chat.id, 'Error: ' + data.text, additionOptions).catch(catchHandle);
         });
         
         if (!isInteractive) {
@@ -179,19 +518,7 @@ export class ManagerEngine {
             if (id) {
                 clearTimeout(id);
             }
-            
-            if (stdoutWaitId) {
-                clearTimeout(stdoutWaitId);
-                stdoutBuffer = output(this.api, stdoutBuffer, '', true);
-                stdoutWaitId = null;
-            }
-            
-            if (stderrWaitId) {
-                clearTimeout(stderrWaitId);
-                stderrBuffer = output(this.api, stderrBuffer, '', true);
-                stderrWaitId = null;
-            }
-            
+
             if (isInteractive) {
                 this.chatRooms.delete(message.chat.id);
             }
@@ -201,7 +528,7 @@ export class ManagerEngine {
                 
                 if (!isSilent) {
                     if (res.time) {
-                        this.api.sendMessage(
+                        this.sendMessage(
                             message.chat.id, 
                             res.time.map(function (arr: string[]) {
                                 return arr[0] + ': ' + arr[1];
@@ -212,15 +539,15 @@ export class ManagerEngine {
                 }
                 
                 if (res.code !== 0 || res.signal != null || !isSilent) {
-                    this.api.sendMessage(
+                    this.sendMessage(
                         message.chat.id, 
-                        'program ended with code ' + res.code + ' and signal ' + res.signal, 
+                        'Program ended with code ' + res.code + ' and signal ' + res.signal, 
                         additionOptions
                     ).catch(catchHandle);
                 } else if (outputLength === 0) {
-                    this.api.sendMessage(
+                    this.sendMessage(
                         message.chat.id, 
-                        'program ended with code ' + res.code + ' and signal ' + res.signal + ' but doesn\'t has any output at all', 
+                        'Program ended with code ' + res.code + ' and signal ' + res.signal + ' but doesn\'t has any output at all', 
                         additionOptions
                     ).catch(catchHandle);
                 }
@@ -231,7 +558,7 @@ export class ManagerEngine {
         
         if (!isSilent) {
             runner.on('log', (data) => {
-                this.api.sendMessage(message.chat.id, 'info: ' + data.text, additionOptions).catch(catchHandle);
+                this.sendMessage(message.chat.id, 'Info: ' + data.text, additionOptions).catch(catchHandle);
             });
         }
     }
