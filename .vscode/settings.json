@@ -1,0 +1,33 @@
+{
+    "workbench.colorCustomizations": {
+        "jsannotations.annotationForeground": "#555",
+        "activityBarBadge.background": "#5a5525",
+        "activityBarBadge.foreground": "#e7e7e7",
+        "activityBar.background": "#301533",
+        "titleBar.activeBackground": "#0e060f",
+        "titleBar.activeForeground": "#e7e7e7",
+        "activityBar.activeBackground": "#301533",
+        "activityBar.activeBorder": "#5a5525",
+        "activityBar.foreground": "#e7e7e7",
+        "activityBar.inactiveForeground": "#e7e7e799",
+        "statusBar.background": "#0e060f",
+        "statusBar.foreground": "#e7e7e7",
+        "statusBarItem.hoverBackground": "#301533",
+        "titleBar.inactiveBackground": "#0e060f99",
+        "titleBar.inactiveForeground": "#e7e7e799"
+    },
+    "typescript.tsdk": "node_modules/typescript/lib",
+    "peacock.remoteColor": "#0e060f",
+    "cSpell.words": [
+        "Mergeable",
+        "Typeson",
+        "capsh",
+        "nuzz",
+        "pastebin",
+        "pids",
+        "setfcap",
+        "setpcap",
+        "stdins",
+        "tson"
+    ]
+}
