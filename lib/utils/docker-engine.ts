@@ -1,10 +1,10 @@
-// @ts-check
-const config = require("../config");
-const child_process = require("child_process");
+import config = require("../../config");
+import child_process = require("child_process");
 const spawn = child_process.spawn;
-const EventEmitter = require("events").EventEmitter;
-const assert = require("assert");
-const readline = require("readline");
+import events = require('events')
+const EventEmitter = events.EventEmitter;
+import assert = require("assert");
+import readline = require("readline");
 
 function guidGenerator() {
     let S4 = function() {
@@ -13,12 +13,7 @@ function guidGenerator() {
     return (S4()+S4()+"-"+S4()+"-"+S4()+"-"+S4()+"-"+S4()+S4()+S4());
 }
 
-/**
- * create a execution engine
- * @param {string} name 
- * @param {{ memory?: number }} opts 
- */
-function createEngine(name = guidGenerator(), opts = {}) {    
+export function createEngine(name: string = guidGenerator(), opts: { memory?: number; } = {}) {    
     const p = spawn('docker', [
         'run',
         '-i',
@@ -68,7 +63,7 @@ function createEngine(name = guidGenerator(), opts = {}) {
         }
     })
     
-    let engine = /** @type {import('./interfaces').Engine} */(new EventEmitter());
+    let engine: import('../interfaces').Engine = new EventEmitter() as any;
     engine.name = name;
     engine._docker = p;
     engine.destroyed = false;
@@ -97,10 +92,8 @@ function createEngine(name = guidGenerator(), opts = {}) {
     }
 
     engine.run = function(conf) {
-        let runner = /** @type {import('./interfaces').EngineRunner} */(new EventEmitter());
-        // @ts-ignore
+        let runner: import('../interfaces').EngineRunner = new EventEmitter() as any;
         assert.ok(conf.type);
-        // @ts-ignore
         assert.ok(conf.program);
         
         if (!conf.id) {
@@ -112,10 +105,7 @@ function createEngine(name = guidGenerator(), opts = {}) {
         
         p.stdin.write(JSON.stringify(conf) + '\n');
 
-        /**
-         * @param {{ id: string; type: string | symbol; }} cmd
-         */
-        let rawListener = function (cmd) {
+        let rawListener = function (cmd: { id: string; type: string; }) {
             if (cmd.id === id) {
                 runner.emit('raw', cmd);
                 runner.emit(cmd.type, cmd);
@@ -150,15 +140,12 @@ function createEngine(name = guidGenerator(), opts = {}) {
         });
         
         runner.write = function (stdin) {
-            /**
-             * @type {{
-             *   action: string,
-             *   id: string,
-             *   stdin: any,
-             *   encoding?: string
-             * }}
-             */
-            let info = {
+            let info: {
+                action: string;
+                id: string;
+                stdin: any;
+                encoding?: string;
+            } = {
                 action: 'write',
                 id: conf.id || (()=> { throw new Error('invalid program id') })(),
                 stdin: stdin
@@ -186,8 +173,4 @@ function createEngine(name = guidGenerator(), opts = {}) {
     };
     
     return engine;
-}
-
-module.exports = {
-    createEngine
 }
