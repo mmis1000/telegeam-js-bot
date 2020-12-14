@@ -221,6 +221,7 @@ export class ManagerEngine {
 
         let lastMergedMessage: messageSnippet[] = []
         let lastMergedMessageId: number | null = null
+        let lastMergedMessageRepliedId: number | null = null
 
         const sleep = (time: number) => new Promise<void>((r) => {
             setTimeout(() => r(), time)
@@ -246,14 +247,21 @@ export class ManagerEngine {
             if (task.type === 'separate') {
                 lastMergedMessage = []
                 lastMergedMessageId = null
+                lastMergedMessageRepliedId = null
             } if (task.type === 'wait') {
                 return sleep(task.length)
             } else if (task.type === 'text-merged') {
                 try {
                     let res: any
-                    const [first, ...remain] = groupMessage([...lastMergedMessage, ...task.messages], MERGE_MESSAGE_LIMIT)
+                    let first, remain
 
-                    if (lastMergedMessageId != null) {
+                    if (
+                        lastMergedMessageId !== null &&
+                        lastMergedMessageRepliedId !== null &&
+                        lastMergedMessageRepliedId === task.sendOptions?.reply_to_message_id
+                    ) {
+                        ;[first, ...remain] = groupMessage([...lastMergedMessage, ...task.messages], MERGE_MESSAGE_LIMIT)
+    
                         res = await this.api.editMessageText(formatMessage(first.group), {
                             chat_id: group,
                             message_id: lastMergedMessageId,
@@ -267,14 +275,19 @@ export class ManagerEngine {
                             lastMergedMessage = first.group
                         }
                     } else {
+                        ;[first, ...remain] = groupMessage([...task.messages], MERGE_MESSAGE_LIMIT)
+
                         res = await this.api.sendMessage(group, formatMessage(first.group), {
                             ...task.sendOptions,
                             parse_mode: 'HTML'
                         })
+
                         if (!first.full) {
+                            lastMergedMessageRepliedId = task.sendOptions?.reply_to_message_id ?? null
                             lastMergedMessageId = res.message_id
                             lastMergedMessage = first.group
                         } else {
+                            lastMergedMessageRepliedId = null
                             lastMergedMessageId = null
                             lastMergedMessage = []
                         }
@@ -315,7 +328,12 @@ export class ManagerEngine {
         return new Promise<TelegramBot.Message>((resolve, reject) => {
             this.getRunner(group).updateQueue(queue => {
                 const last = queue[queue.length - 1]
-                if (last && last.type === 'text-merged') {
+                if (
+                    last &&
+                    last.type === 'text-merged' &&
+                    last.sendOptions?.reply_to_message_id != null &&
+                    last.sendOptions?.reply_to_message_id === options?.reply_to_message_id
+                ) {
                     last.messages.push({
                         label: label,
                         message: text
