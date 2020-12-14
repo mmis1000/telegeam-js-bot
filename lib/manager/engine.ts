@@ -58,7 +58,7 @@ type SendInfo = {
     rejectFunctions?: ((...args: any[]) => any)[]
 } | {
     type: 'wait',
-    length: number,
+    duration: number,
     resolveFunctions?: ((...args: any[]) => any)[],
     rejectFunctions?: ((...args: any[]) => any)[]
 } | {
@@ -70,9 +70,9 @@ type SendInfo = {
 
 export class ManagerEngine {
     private engine: Engine
-    private chatRooms: Map<number, import('../interfaces').EngineRunner> = new Map();
-    private timeoutIdMap: WeakMap<import('../interfaces').EngineRunner, ReturnType<typeof setTimeout>> = new WeakMap()
-    private messageQueues = new Map<number, Runnable<SendInfo>>()
+    private groupRunnerMap: Map<number, import('../interfaces').EngineRunner> = new Map();
+    private groupTimeoutIdMap: WeakMap<import('../interfaces').EngineRunner, ReturnType<typeof setTimeout>> = new WeakMap()
+    private groupMessageQueueMap = new Map<number, Runnable<SendInfo>>()
 
     constructor(
         private runnerList: { type: string; program: string; }[],
@@ -86,9 +86,9 @@ export class ManagerEngine {
 
     }
 
-    getRunner(group: number) {
-        if (this.messageQueues.has(group)) {
-            return this.messageQueues.get(group)!
+    getRunner(chatId: number) {
+        if (this.groupMessageQueueMap.has(chatId)) {
+            return this.groupMessageQueueMap.get(chatId)!
         }
 
         const countStrLength = (str: string) => {
@@ -145,7 +145,6 @@ export class ManagerEngine {
                 group: messageSnippet[]
             }
             const formatted = formalizeMessage(msgs)
-            let currentLength = 0
             let grouped: labeledMessageGroup[] = []
             let currentGroup: labeledMessageGroup = {
                 full: false,
@@ -157,12 +156,8 @@ export class ManagerEngine {
             for (let item of formatted) {
                 const newLength = countLength(formalizeMessage([...currentGroup.group, item]))
                 if (newLength < limit - 100) {
-                    // not full yet
-                    currentLength = newLength
                     currentGroup.group.push(item)
                 } else if (newLength < limit) {
-                    // finish the group gracefully
-                    currentLength = 0
                     currentGroup.group.push(item)
                     currentGroup.full = true
                     currentGroup = {
@@ -189,7 +184,6 @@ export class ManagerEngine {
 
                     formatted.push(remain)
 
-                    currentLength = 0
                     currentGroup.full = true
                     currentGroup = {
                         full: false,
@@ -228,7 +222,7 @@ export class ManagerEngine {
         })
 
         const runner = new Runnable<SendInfo>(async (task, queue) => {
-            const handleError = (err: any) => {
+            const handleError = async (err: any) => {
                 if (err instanceof (TelegramBot as any).errors.TelegramError) {
                     const response: import('http').IncomingMessage = err.response
 
@@ -237,11 +231,12 @@ export class ManagerEngine {
                         queue.unshift(task)
                         queue.unshift({
                             type: 'wait',
-                            length: WAIT_429_INTERVAL
+                            duration: WAIT_429_INTERVAL
                         })
                     }
                 } else {
-                    ; (task.rejectFunctions ?? []).forEach(it => it(err))
+                    await sleep(WAIT_INTERVAL)
+                        ; (task.rejectFunctions ?? []).forEach(it => it(err))
                 }
             }
             if (task.type === 'separate') {
@@ -249,7 +244,7 @@ export class ManagerEngine {
                 lastMergedMessageId = null
                 lastMergedMessageRepliedId = null
             } if (task.type === 'wait') {
-                return sleep(task.length)
+                return sleep(task.duration)
             } else if (task.type === 'text-merged') {
                 try {
                     let res: any
@@ -261,9 +256,9 @@ export class ManagerEngine {
                         lastMergedMessageRepliedId === task.sendOptions?.reply_to_message_id
                     ) {
                         ;[first, ...remain] = groupMessage([...lastMergedMessage, ...task.messages], MERGE_MESSAGE_LIMIT)
-    
+
                         res = await this.api.editMessageText(formatMessage(first.group), {
-                            chat_id: group,
+                            chat_id: chatId,
                             message_id: lastMergedMessageId,
                             parse_mode: 'HTML'
                         })
@@ -277,7 +272,7 @@ export class ManagerEngine {
                     } else {
                         ;[first, ...remain] = groupMessage([...task.messages], MERGE_MESSAGE_LIMIT)
 
-                        res = await this.api.sendMessage(group, formatMessage(first.group), {
+                        res = await this.api.sendMessage(chatId, formatMessage(first.group), {
                             ...task.sendOptions,
                             parse_mode: 'HTML'
                         })
@@ -311,7 +306,7 @@ export class ManagerEngine {
                 try {
                     lastMergedMessage = []
                     lastMergedMessageId = null
-                    const message = await this.api.sendMessage(group, task.message, task.sendOptions)
+                    const message = await this.api.sendMessage(chatId, task.message, task.sendOptions)
                     await sleep(WAIT_INTERVAL)
                         ; (task.resolveFunctions ?? []).forEach(it => it(message))
                 } catch (err) {
@@ -320,13 +315,13 @@ export class ManagerEngine {
             }
         })
 
-        this.messageQueues.set(group, runner)
+        this.groupMessageQueueMap.set(chatId, runner)
         return runner
     }
 
-    sendLabeledMessage(group: number, text: string, label: string, options?: TelegramBot.SendMessageOptions) {
+    sendLabeledMessage(chatId: number, text: string, label: string, options?: TelegramBot.SendMessageOptions) {
         return new Promise<TelegramBot.Message>((resolve, reject) => {
-            this.getRunner(group).updateQueue(queue => {
+            this.getRunner(chatId).updateQueue(queue => {
                 const last = queue[queue.length - 1]
                 if (
                     last &&
@@ -358,9 +353,9 @@ export class ManagerEngine {
         })
     }
 
-    sendMessage(group: number, text: string, options?: TelegramBot.SendMessageOptions) {
+    sendMessage(chatId: number, text: string, options?: TelegramBot.SendMessageOptions) {
         return new Promise<TelegramBot.Message>((resolve, reject) => {
-            this.getRunner(group).updateQueue(queue => {
+            this.getRunner(chatId).updateQueue(queue => {
                 queue.push({
                     type: 'text',
                     message: text,
@@ -372,20 +367,20 @@ export class ManagerEngine {
         })
     }
 
-    wait(group: number, time: number) {
+    waitGroup(chatId: number, time: number) {
         return new Promise<TelegramBot.Message>((resolve, reject) => {
-            this.getRunner(group).updateQueue(queue => {
+            this.getRunner(chatId).updateQueue(queue => {
                 queue.push({
                     type: 'wait',
-                    length: time
+                    duration: time
                 })
             })
         })
     }
 
-    stopGroup(group: number) {
+    stopGroup(chatId: number) {
         return new Promise<TelegramBot.Message>((resolve, reject) => {
-            this.getRunner(group).updateQueue(queue => {
+            this.getRunner(chatId).updateQueue(queue => {
                 queue.push({
                     type: 'separate'
                 })
@@ -393,22 +388,22 @@ export class ManagerEngine {
         })
     }
 
-    hasInteractiveSession(roomId: number) {
-        return this.chatRooms.has(roomId)
+    hasInteractiveSession(chatId: number) {
+        return this.groupRunnerMap.has(chatId)
     }
 
 
-    sendStdin(roomId: number, input: any) {
-        this.stopGroup(roomId)
-        const runner = this.chatRooms.get(roomId)
+    sendStdin(chatId: number, input: any) {
+        this.stopGroup(chatId)
+        const runner = this.groupRunnerMap.get(chatId)
         if (runner) {
             runner.write(input)
         }
     }
 
-    terminateStdin(roomId: number, message: TelegramBot.Message) {
-        this.stopGroup(roomId)
-        const runner = this.chatRooms.get(roomId)
+    terminateStdin(chatId: number, message: TelegramBot.Message) {
+        this.stopGroup(chatId)
+        const runner = this.groupRunnerMap.get(chatId)
         if (runner) {
             runner.write(null);
             this.scheduleKill(runner, message)
@@ -416,11 +411,11 @@ export class ManagerEngine {
     }
 
     scheduleKill(runner: EngineRunner, message: TelegramBot.Message) {
-        if (this.timeoutIdMap.has(runner)) {
+        if (this.groupTimeoutIdMap.has(runner)) {
             return // already scheduled
         }
 
-        this.timeoutIdMap.set(runner, setTimeout(() => {
+        this.groupTimeoutIdMap.set(runner, setTimeout(() => {
             console.log('force killing runner ' + runner.id);
             this.sendMessage(message.chat.id, 'killed due to timeout').catch(catchHandle);
             runner.kill('SIGKILL');
@@ -445,7 +440,7 @@ export class ManagerEngine {
         })
 
         if (isInteractive) {
-            this.chatRooms.set(message.chat.id, runner);
+            this.groupRunnerMap.set(message.chat.id, runner);
             this.sendMessage(message.chat.id, `process started in interactive mode
     use | to prefix your text to send it to stdin
     use || to terminate the stdin`, additionOptions).catch(catchHandle);
@@ -463,7 +458,7 @@ export class ManagerEngine {
         let truncated = false;
 
         this.stopGroup(message.chat.id)
-        this.wait(message.chat.id, BEFORE_SEND_INTERVAL)
+        this.waitGroup(message.chat.id, BEFORE_SEND_INTERVAL)
 
         runner.on('stdout', async (data) => {
             if (truncated) return;
@@ -533,13 +528,13 @@ export class ManagerEngine {
         }
 
         runner.on('exit', (data) => {
-            const id = this.timeoutIdMap.get(runner)
+            const id = this.groupTimeoutIdMap.get(runner)
             if (id) {
                 clearTimeout(id);
             }
 
             if (isInteractive) {
-                this.chatRooms.delete(message.chat.id);
+                this.groupRunnerMap.delete(message.chat.id);
             }
 
             try {
