@@ -280,7 +280,8 @@ export class ManagerEngine {
                         }
                     }
 
-                    if (remain.length >= 0) {
+                    if (remain.length > 0) {
+                        await sleep(WAIT_INTERVAL)
                         queue.unshift({
                             // also pass the resolveFunctions...etc to it
                             ...task,
@@ -446,7 +447,7 @@ export class ManagerEngine {
         this.stopGroup(message.chat.id)
         this.wait(message.chat.id, BEFORE_SEND_INTERVAL)
 
-        runner.on('stdout', (data) => {
+        runner.on('stdout', async (data) => {
             if (truncated) return;
 
             if (outputLength + data.text.length <= outputLimit) {
@@ -460,7 +461,7 @@ export class ManagerEngine {
                 outputLength = outputLimit
                 truncated = true
 
-                this.sendLabeledMessage(message.chat.id, text, '', {
+                await this.sendLabeledMessage(message.chat.id, text, '', {
                     reply_to_message_id: message.message_id
                 }).catch(catchHandle);
 
@@ -470,7 +471,7 @@ export class ManagerEngine {
             }
         });
 
-        runner.on('stderr', (data) => {
+        runner.on('stderr', async (data) => {
             if (truncated) return;
 
             if (outputLength + data.text.length <= outputLimit) {
@@ -484,7 +485,7 @@ export class ManagerEngine {
                 outputLength = outputLimit
                 truncated = true
 
-                this.sendLabeledMessage(message.chat.id, text, 'Stderr: ', {
+                await this.sendLabeledMessage(message.chat.id, text, 'Stderr: ', {
                     reply_to_message_id: message.message_id
                 }).catch(catchHandle);
 
