@@ -7,9 +7,9 @@ import c = require('../../docker_image/runner/c');
 
 function escapeHtml(unsafe: string) {
     return unsafe
-         .replace(/&/g, "&amp;")
-         .replace(/</g, "&lt;")
-         .replace(/>/g, "&gt;");
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
 }
 
 function catchHandle(err: { stack: any; }) {
@@ -17,10 +17,10 @@ function catchHandle(err: { stack: any; }) {
 }
 
 function guidGenerator() {
-    let S4 = function() {
-       return (((1+Math.random())*0x10000)|0).toString(16).substring(1);
+    let S4 = function () {
+        return (((1 + Math.random()) * 0x10000) | 0).toString(16).substring(1);
     };
-    return (S4()+S4()+"-"+S4()+"-"+S4()+"-"+S4()+"-"+S4()+S4()+S4());
+    return (S4() + S4() + "-" + S4() + "-" + S4() + "-" + S4() + "-" + S4() + S4() + S4());
 }
 
 // how long before the bot should just split the message
@@ -71,10 +71,10 @@ type SendInfo = {
 export class ManagerEngine {
     private engine: Engine
     private chatRooms: Map<number, import('../interfaces').EngineRunner> = new Map();
-    private timeoutIdMap:  WeakMap<import('../interfaces').EngineRunner, ReturnType<typeof setTimeout>> = new WeakMap()
+    private timeoutIdMap: WeakMap<import('../interfaces').EngineRunner, ReturnType<typeof setTimeout>> = new WeakMap()
     private messageQueues = new Map<number, Runnable<SendInfo>>()
 
-    constructor (
+    constructor(
         private runnerList: { type: string; program: string; }[],
         private api: TelegramBot,
         config: typeof Config
@@ -83,10 +83,10 @@ export class ManagerEngine {
         this.engine.on('destroyed', () => {
             this.engine = runner.createEngine();
         })
-        
+
     }
 
-    getRunner (group: number) {
+    getRunner(group: number) {
         if (this.messageQueues.has(group)) {
             return this.messageQueues.get(group)!
         }
@@ -94,7 +94,7 @@ export class ManagerEngine {
         const countStrLength = (str: string) => {
             let length = 0
             for (let s of str) {
-                if (s === '>' || s === '<' ) {
+                if (s === '>' || s === '<') {
                     length += 4
                 } else if (s === '&') {
                     length += 5
@@ -105,7 +105,7 @@ export class ManagerEngine {
             return length
         }
 
-        const countLength = (arg:messageSnippet[]) => {
+        const countLength = (arg: messageSnippet[]) => {
             let length = 0
             for (let seg of arg) {
                 if (seg.label != null) {
@@ -186,7 +186,7 @@ export class ManagerEngine {
                         label: item.label,
                         message: item.message.slice(-overflow)
                     }
-                    
+
                     formatted.push(remain)
 
                     currentLength = 0
@@ -240,7 +240,7 @@ export class ManagerEngine {
                         })
                     }
                 } else {
-                    ;(task.rejectFunctions ?? []).forEach(it => it(err))
+                    ; (task.rejectFunctions ?? []).forEach(it => it(err))
                 }
             }
             if (task.type === 'separate') {
@@ -252,7 +252,7 @@ export class ManagerEngine {
                 try {
                     let res: any
                     const [first, ...remain] = groupMessage([...lastMergedMessage, ...task.messages], MERGE_MESSAGE_LIMIT)
-                    
+
                     if (lastMergedMessageId != null) {
                         res = await this.api.editMessageText(formatMessage(first.group), {
                             chat_id: group,
@@ -288,7 +288,7 @@ export class ManagerEngine {
                         })
                     } else {
                         await sleep(WAIT_INTERVAL)
-                        ;(task.resolveFunctions ?? []).forEach(it => it(res))
+                            ; (task.resolveFunctions ?? []).forEach(it => it(res))
                     }
                 } catch (err) {
                     handleError(err)
@@ -299,7 +299,7 @@ export class ManagerEngine {
                     lastMergedMessageId = null
                     const message = await this.api.sendMessage(group, task.message, task.sendOptions)
                     await sleep(WAIT_INTERVAL)
-                    ;(task.resolveFunctions ?? []).forEach(it => it(message))
+                        ; (task.resolveFunctions ?? []).forEach(it => it(message))
                 } catch (err) {
                     handleError(err)
                 }
@@ -381,7 +381,7 @@ export class ManagerEngine {
 
     sendStdin(roomId: number, input: any) {
         this.stopGroup(roomId)
-        const runner =  this.chatRooms.get(roomId)
+        const runner = this.chatRooms.get(roomId)
         if (runner) {
             runner.write(input)
         }
@@ -389,14 +389,14 @@ export class ManagerEngine {
 
     terminateStdin(roomId: number, message: TelegramBot.Message) {
         this.stopGroup(roomId)
-        const runner =  this.chatRooms.get(roomId)
+        const runner = this.chatRooms.get(roomId)
         if (runner) {
             runner.write(null);
             this.scheduleKill(runner, message)
         }
     }
 
-    scheduleKill (runner: EngineRunner,message: TelegramBot.Message) {
+    scheduleKill(runner: EngineRunner, message: TelegramBot.Message) {
         if (this.timeoutIdMap.has(runner)) {
             return // already scheduled
         }
@@ -412,37 +412,37 @@ export class ManagerEngine {
         let additionOptions = {
             reply_to_message_id: message.message_id
         }
-        
+
         if (isHelloWorld) {
             code = this.runnerList.filter(function (info) {
                 return info.type === language
             })[0].program;
         }
-        
+
         let runner = this.engine.run({
             type: language,
             program: code,
             user: 'debian'
         })
-        
+
         if (isInteractive) {
             this.chatRooms.set(message.chat.id, runner);
             this.sendMessage(message.chat.id, `process started in interactive mode
     use | to prefix your text to send it to stdin
     use || to terminate the stdin`, additionOptions).catch(catchHandle);
         }
-        
+
         if (!isSilent || isHelloWorld) {
-            this.sendMessage(message.chat.id, 'running... \n<pre>' + escapeHtml(code) + '</pre>', {
+            this.sendMessage(message.chat.id, 'Running... \n<pre>' + escapeHtml(code) + '</pre>', {
                 parse_mode: 'HTML',
                 reply_to_message_id: message.message_id
             }).catch(catchHandle);
         }
-        
+
         let outputLength = 0;
         let outputLimit = isInteractive ? Infinity : LENGTH_LIMIT;
         let truncated = false;
-    
+
         this.stopGroup(message.chat.id)
         this.wait(message.chat.id, BEFORE_SEND_INTERVAL)
 
@@ -452,7 +452,7 @@ export class ManagerEngine {
             if (outputLength + data.text.length <= outputLimit) {
                 outputLength += data.text.length
 
-                this.sendLabeledMessage(message.chat.id, data.text, 'Stdout: ', {
+                this.sendLabeledMessage(message.chat.id, data.text, '', {
                     reply_to_message_id: message.message_id
                 }).catch(catchHandle);
             } else {
@@ -460,7 +460,7 @@ export class ManagerEngine {
                 outputLength = outputLimit
                 truncated = true
 
-                this.sendLabeledMessage(message.chat.id, text, 'Stdout: ', {
+                this.sendLabeledMessage(message.chat.id, text, '', {
                     reply_to_message_id: message.message_id
                 }).catch(catchHandle);
 
@@ -500,19 +500,19 @@ export class ManagerEngine {
             }
             console.log('status change: ' + data.text)
         });
-        
+
         runner.on('throw', (data) => {
             this.sendMessage(message.chat.id, 'Error: ' + data.text, additionOptions).catch(catchHandle);
         });
-        
+
         runner.on('error', (data) => {
             this.sendMessage(message.chat.id, 'Error: ' + data.text, additionOptions).catch(catchHandle);
         });
-        
+
         if (!isInteractive) {
             this.scheduleKill(runner, message)
         }
-        
+
         runner.on('exit', (data) => {
             const id = this.timeoutIdMap.get(runner)
             if (id) {
@@ -522,32 +522,35 @@ export class ManagerEngine {
             if (isInteractive) {
                 this.chatRooms.delete(message.chat.id);
             }
-            
+
             try {
                 let res = JSON.parse(data.text);
-                
+
                 if (!isSilent) {
                     if (res.time) {
                         this.sendMessage(
-                            message.chat.id, 
+                            message.chat.id,
                             res.time.map(function (arr: string[]) {
-                                return arr[0] + ': ' + arr[1];
-                            }).join('\n'), 
-                            additionOptions
+                                return `${escapeHtml(arr[0])}: <code>${escapeHtml(arr[1])}</code>`;
+                            }).join('\n'),
+                            {
+                                ...additionOptions,
+                                parse_mode: 'HTML'
+                            }
                         ).catch(catchHandle);
                     }
                 }
-                
+
                 if (res.code !== 0 || res.signal != null || !isSilent) {
                     this.sendMessage(
-                        message.chat.id, 
-                        'Program ended with code ' + res.code + ' and signal ' + res.signal, 
+                        message.chat.id,
+                        'Program ended with code ' + res.code + ' and signal ' + res.signal,
                         additionOptions
                     ).catch(catchHandle);
                 } else if (outputLength === 0) {
                     this.sendMessage(
-                        message.chat.id, 
-                        'Program ended with code ' + res.code + ' and signal ' + res.signal + ' but doesn\'t has any output at all', 
+                        message.chat.id,
+                        'Program ended with code ' + res.code + ' and signal ' + res.signal + ' but doesn\'t has any output at all',
                         additionOptions
                     ).catch(catchHandle);
                 }
@@ -555,10 +558,10 @@ export class ManagerEngine {
                 console.error(e);
             }
         })
-        
+
         if (!isSilent) {
             runner.on('log', (data) => {
-                this.sendMessage(message.chat.id, 'Info: ' + data.text, additionOptions).catch(catchHandle);
+                this.sendMessage(message.chat.id, 'Info: <code>' + escapeHtml(data.text) + '</code>', { ...additionOptions, parse_mode: 'HTML' }).catch(catchHandle);
             });
         }
     }
