@@ -2,6 +2,7 @@
   "apps" : [{
     "name" : "js_bot",
     "script" : "./index.js",
+    "node_args": "-r ts-node/register/transpile-only",
     "watch" : true,
     "exec_mode" : "fork"
   }]
