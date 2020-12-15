@@ -585,7 +585,7 @@ export class ManagerEngine {
             }
             
             if (exited) {
-                if (exitCode != 0) {
+                if (exitCode != 0 || (!stdout && !stderr)) {
                     messages.push({
                         label: 'Exit code:',
                         message: String(exitCode)
