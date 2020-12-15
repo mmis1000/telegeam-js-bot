@@ -96,13 +96,13 @@ export class ManagerEngine {
 
             try {
                 op.resolveFunctions.forEach(it => it(res))
-            } catch (err) {}
+            } catch (err) { }
         } catch (err) {
             await sleep(INLINE_INTERVAL)
 
             try {
                 op.rejectFunctions.forEach(it => it(err))
-            } catch (err) {}
+            } catch (err) { }
         }
     })
 
@@ -421,11 +421,11 @@ export class ManagerEngine {
         });
 
         runner.on('throw', (data) => {
-            this.sendMessage(message.chat.id, 'Error: ' + data.text, additionOptions).catch(catchHandle);
+            this.sendLabeledMessage(message.chat.id, data.text, 'Compile error:', additionOptions).catch(catchHandle);
         });
 
         runner.on('error', (data) => {
-            this.sendMessage(message.chat.id, 'Error: ' + data.text, additionOptions).catch(catchHandle);
+            this.sendLabeledMessage(message.chat.id, data.text, 'Compile error:', additionOptions).catch(catchHandle);
         });
 
         if (!isInteractive) {
@@ -488,7 +488,7 @@ export class ManagerEngine {
 
     scheduleInline<T extends (...args: any[]) => Promise<any>>(id: any, fn: T): ReturnType<T> {
         return this.inlineRunner.updateQueue((queue: InlineOp[]) => {
-            return new Promise(function (resolve ,reject) {
+            return new Promise(function (resolve, reject) {
                 const task = findOrCreate(
                     queue,
                     it => it.id === id,
@@ -510,7 +510,7 @@ export class ManagerEngine {
     executeCodeInline(chosenResult: TelegramBot.ChosenInlineResult) {
         if (!chosenResult.result_id.startsWith(INLINE_QUERY_RESULT_IDENTIFIER)) {
             // not even a run request
-            return 
+            return
         }
 
         const inlineMessageId = chosenResult.inline_message_id
@@ -525,7 +525,7 @@ export class ManagerEngine {
             this.scheduleInline(inlineMessageId, () => this.api.editMessageText(`Error: unknown language ${language}`, {
                 inline_message_id: inlineMessageId
             }))
-            
+
             return
         }
 
@@ -552,6 +552,8 @@ export class ManagerEngine {
         let stdout = ''
         let stderr = ''
 
+        let compileError = ''
+
         let id = setTimeout(() => {
             timeoutKilled = true;
             runner.kill('SIGKILL');
@@ -564,26 +566,33 @@ export class ManagerEngine {
                 label: 'Language:',
                 message: language
             })
-            
+
             messages.push({
                 label: 'Code:',
                 message: code
             })
-            
+
             if (stdout.length > 0) {
                 messages.push({
                     label: 'Stdout:',
                     message: stdout
                 })
             }
-            
+
             if (stderr.length > 0) {
                 messages.push({
                     label: 'Stderr:',
                     message: stderr
                 })
             }
-            
+
+            if (compileError.length > 0) {
+                messages.push({
+                    label: 'Compile Error:',
+                    message: compileError
+                })
+            }
+
             if (exited) {
                 if (exitCode != 0 || (!stdout && !stderr)) {
                     messages.push({
@@ -631,13 +640,32 @@ export class ManagerEngine {
             ))
         }
 
+        const getTotalLength = () => stdout.length + stderr.length + compileError.length
+
+        const errorHandle = (data: any) => {
+            if (truncated) return
+            const str: string = data.text
+
+            if (getTotalLength() + str.length >= INLINE_LENGTH_LIMIT) {
+                truncated = true
+                compileError += str.slice(0, INLINE_LENGTH_LIMIT - getTotalLength())
+            } else {
+                compileError += str
+            }
+
+            sendMessage()
+        }
+
+        runner.on('throw', errorHandle)
+        runner.on('error', errorHandle)
+
         runner.on('stdout', async (data) => {
             if (truncated) return
             const str: string = data.text
 
-            if (stdout.length + stderr.length + str.length >= INLINE_LENGTH_LIMIT) {
+            if (getTotalLength() + str.length >= INLINE_LENGTH_LIMIT) {
                 truncated = true
-                stdout += str.slice(0, INLINE_LENGTH_LIMIT - stdout.length - stderr.length)
+                stdout += str.slice(0, INLINE_LENGTH_LIMIT - getTotalLength())
             } else {
                 stdout += str
             }
@@ -649,9 +677,9 @@ export class ManagerEngine {
             if (truncated) return
             const str: string = data.text
 
-            if (stdout.length + stderr.length + str.length >= INLINE_LENGTH_LIMIT) {
+            if (getTotalLength() + str.length >= INLINE_LENGTH_LIMIT) {
                 truncated = true
-                stderr += str.slice(0, INLINE_LENGTH_LIMIT - stdout.length - stderr.length)
+                stderr += str.slice(0, INLINE_LENGTH_LIMIT - getTotalLength())
             } else {
                 stderr += str
             }
