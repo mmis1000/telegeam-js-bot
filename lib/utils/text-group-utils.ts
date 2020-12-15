@@ -126,9 +126,10 @@ export const formatMessage = (msgs: MessageSnippet[]) => {
         if (item.label != null) {
             msg += escapeHtml(item.label)
         }
+        msg += '\n'
         msg += '<pre>'
         msg += escapeHtml(item.message)
-        msg += '</pre>'
+        msg += '</pre>\n'
     }
     return msg
 }
