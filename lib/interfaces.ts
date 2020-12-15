@@ -104,9 +104,13 @@ export type Session = {
     state: ContinuableState
 }
 
-export interface IRepositorySession {
-    list(): Promise<Session[]>
-    get(id: string): Promise<Session>
-    set(session: Session): Promise<void>
+
+export interface IRepository<T extends { id: string }> {
+    list(): Promise<T[]>
+    get(id: string): Promise<T>
+    set(session: T): Promise<void>
     delete(id: string): Promise<void>
+}
+
+export interface IRepositorySession extends IRepository<Session> {
 }

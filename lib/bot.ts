@@ -1,6 +1,5 @@
 import fs = require("fs");
 import path = require("path");
-import runner = require("./utils/docker-engine");
 
 import config = require("../config");
 import TelegramBot = require('node-telegram-bot-api');
@@ -11,7 +10,7 @@ import { createContinuableContext, createStaticContext } from "./session-context
 import { RepositorySession } from "./repository/session";
 import { Session } from "./interfaces";
 import { sessionCreateQuest } from "./session/create-quest";
-import { ManagerEngine } from "./manager/engine";
+import { INLINE_QUERY_RESULT_IDENTIFIER, ManagerEngine } from "./manager/engine";
 
 let api = new TelegramBot(config.token)
 
@@ -320,6 +319,43 @@ This command will try to fetch the content of the pastebin paste and execute it.
         } else {
             managerEngine.sendStdin(message.chat.id, message.text.replace(/([^\n])$/, '$1\n').replace(/^\|/, ''))
         }
+    }
+})
+
+api.on('inline_query', message => {
+    const results: TelegramBot.InlineQueryResultArticle[] = []
+
+    for (let runner of runnerList) {
+        results.push({
+            id: INLINE_QUERY_RESULT_IDENTIFIER + runner.type,
+            type: 'article',
+            title: runner.type,
+            input_message_content: {
+                message_text: 'Compiler bot: Starting the worker...',
+                parse_mode: 'HTML',
+                disable_web_page_preview: true
+            },
+            reply_markup: {
+                inline_keyboard: [[{ text: 'A useless button', callback_data: 'nonse' }]]
+            }
+        })
+    }
+    
+    if (message.query.trim() === '') {
+        return
+    }
+
+    api.answerInlineQuery(message.id, results).catch(catchHandle)
+})
+
+api.on('chosen_inline_result', result => {
+    if (result.result_id && result.result_id.startsWith(INLINE_QUERY_RESULT_IDENTIFIER)) {
+        // remove the useless button
+        api.editMessageText('Compiler bot: Starting the worker...', {
+            inline_message_id: result.inline_message_id!
+        })
+
+        managerEngine.executeCodeInline(result)
     }
 })
 

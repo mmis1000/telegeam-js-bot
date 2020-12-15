@@ -4,6 +4,9 @@ import * as TelegramBot from 'node-telegram-bot-api'
 import runner = require("../utils/docker-engine");
 import { Runnable } from '../utils/runnable';
 import c = require('../../docker_image/runner/c');
+import { sleep } from '../utils/promise-utils';
+import { formalizeMessage, formatMessage, groupMessage, MessageSnippet } from '../utils/text-group-utils';
+import { findOrCreate } from '../utils/array-util';
 
 function escapeHtml(unsafe: string) {
     return unsafe
@@ -23,24 +26,27 @@ function guidGenerator() {
     return (S4() + S4() + "-" + S4() + "-" + S4() + "-" + S4() + "-" + S4() + S4() + S4());
 }
 
+const ONE_SHOT_TIMEOUT = 30000
+
 // how long before the bot should just split the message
 const MERGE_MESSAGE_LIMIT = 4000
 
 // how long before the bot should just split the message
 const LENGTH_LIMIT = 7800
 
+// delay before send the first message to group
 const BEFORE_SEND_INTERVAL = 1 * 1000
 // delay after it send ant message
 const WAIT_INTERVAL = 2 * 1000
 // delay after it receive 429 error
 const WAIT_429_INTERVAL = 20 * 1000
 
-type messageSnippet = {
-    label?: string,
-    message: string
-}
+// interval of inline message or edit
+const INLINE_INTERVAL = 0.5 * 1000
 
-type SendInfo = {
+const INLINE_LENGTH_LIMIT = 2000
+
+type GroupSendInfo = {
     type: 'text',
     message: string,
     sendOptions?: TelegramBot.SendMessageOptions,
@@ -48,7 +54,7 @@ type SendInfo = {
     rejectFunctions?: ((...args: any[]) => any)[]
 } | {
     type: 'text-merged',
-    messages: messageSnippet[],
+    messages: MessageSnippet[],
     /** 
      * used only when it is sending instead of patching.
      * reply_mode will ignored, text will be encoded
@@ -68,11 +74,37 @@ type SendInfo = {
     rejectFunctions?: ((...args: any[]) => any)[]
 }
 
+type InlineOp = {
+    id: any,
+    fn: (...args: any[]) => any,
+    resolveFunctions: ((...args: any[]) => any)[],
+    rejectFunctions: ((...args: any[]) => any)[]
+}
+
+export const INLINE_QUERY_RESULT_IDENTIFIER = 'run-inline:'
+
 export class ManagerEngine {
     private engine: Engine
     private groupRunnerMap: Map<number, import('../interfaces').EngineRunner> = new Map();
     private groupTimeoutIdMap: WeakMap<import('../interfaces').EngineRunner, ReturnType<typeof setTimeout>> = new WeakMap()
-    private groupMessageQueueMap = new Map<number, Runnable<SendInfo>>()
+    private groupMessageQueueMap = new Map<number, Runnable<GroupSendInfo>>()
+    private inlineRunner = new Runnable<InlineOp>(async (op, ops) => {
+        try {
+            const res = await op.fn()
+
+            await sleep(INLINE_INTERVAL)
+
+            try {
+                op.resolveFunctions.forEach(it => it(res))
+            } catch (err) {}
+        } catch (err) {
+            await sleep(INLINE_INTERVAL)
+
+            try {
+                op.rejectFunctions.forEach(it => it(err))
+            } catch (err) {}
+        }
+    })
 
     constructor(
         private runnerList: { type: string; program: string; }[],
@@ -91,137 +123,11 @@ export class ManagerEngine {
             return this.groupMessageQueueMap.get(chatId)!
         }
 
-        const countStrLength = (str: string) => {
-            let length = 0
-            for (let s of str) {
-                if (s === '>' || s === '<') {
-                    length += 4
-                } else if (s === '&') {
-                    length += 5
-                } else {
-                    length += s.length
-                }
-            }
-            return length
-        }
-
-        const countLength = (arg: messageSnippet[]) => {
-            let length = 0
-            for (let seg of arg) {
-                if (seg.label != null) {
-                    // 11 => <pre></pre>
-                    length += (11 + countStrLength(seg.label))
-                }
-
-                length += countStrLength(seg.message)
-                // 2 => \n\n
-                length += 2
-            }
-            return length
-        }
-
-        const formalizeMessage = (msgs: messageSnippet[]) => {
-            const out = []
-            let prev: messageSnippet | null = null
-
-            for (let item of msgs) {
-                if (prev != null && item.label === prev!.label) {
-                    prev!.message += item.message
-                } else {
-                    const clone = {
-                        ...item
-                    }
-                    out.push(clone)
-                    prev = clone
-                }
-            }
-
-            return out
-        }
-
-        const groupMessage = (msgs: messageSnippet[], limit: number) => {
-            type labeledMessageGroup = {
-                full: boolean,
-                group: messageSnippet[]
-            }
-            const formatted = formalizeMessage(msgs)
-            let grouped: labeledMessageGroup[] = []
-            let currentGroup: labeledMessageGroup = {
-                full: false,
-                group: []
-            }
-
-            grouped.push(currentGroup)
-
-            for (let item of formatted) {
-                const newLength = countLength(formalizeMessage([...currentGroup.group, item]))
-                if (newLength < limit - 100) {
-                    currentGroup.group.push(item)
-                } else if (newLength < limit) {
-                    currentGroup.group.push(item)
-                    currentGroup.full = true
-                    currentGroup = {
-                        full: false,
-                        group: []
-                    }
-                    grouped.push(currentGroup)
-                } else {
-                    // cut it
-
-                    const overflow = newLength - limit
-
-                    const captured: messageSnippet = {
-                        label: item.label,
-                        message: item.message.slice(0, item.message.length - overflow)
-                    }
-
-                    currentGroup.group.push(captured)
-
-                    const remain: messageSnippet = {
-                        label: item.label,
-                        message: item.message.slice(-overflow)
-                    }
-
-                    formatted.push(remain)
-
-                    currentGroup.full = true
-                    currentGroup = {
-                        full: false,
-                        group: []
-                    }
-                    grouped.push(currentGroup)
-                }
-            }
-
-            if (grouped[grouped.length - 1]!.group.length === 0) {
-                grouped.pop()
-            }
-
-            return grouped
-        }
-
-        const formatMessage = (msgs: messageSnippet[]) => {
-            let msg = ''
-            for (let item of msgs) {
-                if (item.label != null) {
-                    msg += escapeHtml(item.label)
-                }
-                msg += '<pre>'
-                msg += escapeHtml(item.message)
-                msg += '</pre>'
-            }
-            return msg
-        }
-
-        let lastMergedMessage: messageSnippet[] = []
+        let lastMergedMessage: MessageSnippet[] = []
         let lastMergedMessageId: number | null = null
         let lastMergedMessageRepliedId: number | null = null
 
-        const sleep = (time: number) => new Promise<void>((r) => {
-            setTimeout(() => r(), time)
-        })
-
-        const runner = new Runnable<SendInfo>(async (task, queue) => {
+        const runner = new Runnable<GroupSendInfo>(async (task, queue) => {
             const handleError = async (err: any) => {
                 if (err instanceof (TelegramBot as any).errors.TelegramError) {
                     const response: import('http').IncomingMessage = err.response
@@ -392,7 +298,6 @@ export class ManagerEngine {
         return this.groupRunnerMap.has(chatId)
     }
 
-
     sendStdin(chatId: number, input: any) {
         this.stopGroup(chatId)
         const runner = this.groupRunnerMap.get(chatId)
@@ -419,7 +324,7 @@ export class ManagerEngine {
             console.log('force killing runner ' + runner.id);
             this.sendMessage(message.chat.id, 'killed due to timeout').catch(catchHandle);
             runner.kill('SIGKILL');
-        }, 30000))
+        }, ONE_SHOT_TIMEOUT))
     }
 
     executeCode(message: TelegramBot.Message, language: string, code: string, isHelloWorld: boolean, isSilent: boolean, isInteractive: boolean) {
@@ -529,6 +434,7 @@ export class ManagerEngine {
 
         runner.on('exit', (data) => {
             const id = this.groupTimeoutIdMap.get(runner)
+
             if (id) {
                 clearTimeout(id);
             }
@@ -578,5 +484,194 @@ export class ManagerEngine {
                 this.sendMessage(message.chat.id, 'Info: <code>' + escapeHtml(data.text) + '</code>', { ...additionOptions, parse_mode: 'HTML' }).catch(catchHandle);
             });
         }
+    }
+
+    scheduleInline<T extends (...args: any[]) => Promise<any>>(id: any, fn: T): ReturnType<T> {
+        return this.inlineRunner.updateQueue((queue: InlineOp[]) => {
+            return new Promise(function (resolve ,reject) {
+                const task = findOrCreate(
+                    queue,
+                    it => it.id === id,
+                    () => ({
+                        id,
+                        fn,
+                        resolveFunctions: [],
+                        rejectFunctions: []
+                    })
+                )
+                task.fn = fn
+                task.resolveFunctions.push(resolve)
+                task.rejectFunctions.push(reject)
+                queue.push(task)
+            }) as unknown as ReturnType<T>
+        })
+    }
+
+    executeCodeInline(chosenResult: TelegramBot.ChosenInlineResult) {
+        if (!chosenResult.result_id.startsWith(INLINE_QUERY_RESULT_IDENTIFIER)) {
+            // not even a run request
+            return 
+        }
+
+        const inlineMessageId = chosenResult.inline_message_id
+
+        const code = chosenResult.query
+        const language = chosenResult.result_id.replace(INLINE_QUERY_RESULT_IDENTIFIER, '')
+
+
+        if (!this.runnerList.find(it => it.type === language)) {
+            // I don't know what is this
+            // just give up
+            this.scheduleInline(inlineMessageId, () => this.api.editMessageText(`Error: unknown language ${language}`, {
+                inline_message_id: inlineMessageId
+            }))
+            
+            return
+        }
+
+        let runner = this.engine.run({
+            type: language,
+            program: code,
+            user: 'debian'
+        })
+
+        this.scheduleInline(
+            inlineMessageId,
+            () => new Promise(resolve => setTimeout(resolve, BEFORE_SEND_INTERVAL))
+        )
+
+        let timeoutKilled = false
+
+        let badResponse = false
+
+        let exited = false
+        let exitCode = 0
+        let exitSignal: any = null
+
+        let truncated = false
+        let stdout = ''
+        let stderr = ''
+
+        let id = setTimeout(() => {
+            timeoutKilled = true;
+            runner.kill('SIGKILL');
+        }, ONE_SHOT_TIMEOUT)
+
+        const sendMessage = () => {
+            const messages: MessageSnippet[] = []
+
+            messages.push({
+                label: 'Language:',
+                message: language
+            })
+            
+            messages.push({
+                label: 'Code:',
+                message: code
+            })
+            
+            if (stdout.length > 0) {
+                messages.push({
+                    label: 'Stdout:',
+                    message: stdout
+                })
+            }
+            
+            if (stderr.length > 0) {
+                messages.push({
+                    label: 'Stderr:',
+                    message: stderr
+                })
+            }
+            
+            if (exited) {
+                if (exitCode != 0) {
+                    messages.push({
+                        label: 'Exit code:',
+                        message: String(exitCode)
+                    })
+                }
+                if (exitSignal != null) {
+                    messages.push({
+                        label: 'Exit signal:',
+                        message: String(exitSignal)
+                    })
+                }
+            }
+
+            if (truncated) {
+                messages.push({
+                    label: 'Note:',
+                    message: 'Some message was truncated because output is too long.\n'
+                })
+            }
+
+            if (timeoutKilled) {
+                messages.push({
+                    label: 'Note:',
+                    message: `Killed due to timeout (${ONE_SHOT_TIMEOUT}ms).\n`
+                })
+            }
+
+            if (badResponse) {
+                messages.push({
+                    label: 'Error:',
+                    message: 'Something went wrong internally.\n'
+                })
+            }
+
+            const formatted = formatMessage(formalizeMessage(messages))
+
+            this.scheduleInline(inlineMessageId, () => this.api.editMessageText(
+                formatted,
+                {
+                    inline_message_id: inlineMessageId,
+                    parse_mode: 'HTML'
+                }
+            ))
+        }
+
+        runner.on('stdout', async (data) => {
+            if (truncated) return
+            const str: string = data.text
+
+            if (stdout.length + stderr.length + str.length >= INLINE_LENGTH_LIMIT) {
+                truncated = true
+                stdout += str.slice(0, INLINE_LENGTH_LIMIT - stdout.length - stderr.length)
+            } else {
+                stdout += str
+            }
+
+            sendMessage()
+        })
+
+        runner.on('stderr', async (data) => {
+            if (truncated) return
+            const str: string = data.text
+
+            if (stdout.length + stderr.length + str.length >= INLINE_LENGTH_LIMIT) {
+                truncated = true
+                stderr += str.slice(0, INLINE_LENGTH_LIMIT - stdout.length - stderr.length)
+            } else {
+                stderr += str
+            }
+
+            sendMessage()
+        })
+
+        runner.on('exit', (data) => {
+            clearTimeout(id)
+
+            try {
+                let res: { code: number, signal: string | number | null } = JSON.parse(data.text);
+                exited = true
+                exitCode = res.code
+                exitSignal = res.signal
+                sendMessage()
+            } catch (err) {
+                badResponse = true
+                sendMessage()
+            }
+        })
     }
 }
