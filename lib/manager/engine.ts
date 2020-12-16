@@ -415,17 +415,23 @@ export class ManagerEngine {
 
         runner.on('status', (data) => {
             if (data.text !== 'exited') {
-                this.api.sendChatAction(message.chat.id, 'typing').catch(catchHandle);
+                this.api
+                    .sendChatAction(message.chat.id, 'typing')
+                    .catch(catchHandle);
             }
             console.log('status change: ' + data.text)
         });
 
         runner.on('throw', (data) => {
-            this.sendLabeledMessage(message.chat.id, data.text, 'Compile error:', additionOptions).catch(catchHandle);
+            this
+                .sendLabeledMessage(message.chat.id, data.text, 'Compile error:', additionOptions)
+                .catch(catchHandle);
         });
 
         runner.on('error', (data) => {
-            this.sendLabeledMessage(message.chat.id, data.text, 'Compile error:', additionOptions).catch(catchHandle);
+            this
+                .sendLabeledMessage(message.chat.id, data.text, 'Compile error:', additionOptions)
+                .catch(catchHandle);
         });
 
         if (!isInteractive) {
@@ -481,7 +487,14 @@ export class ManagerEngine {
 
         if (!isSilent) {
             runner.on('log', (data) => {
-                this.sendMessage(message.chat.id, 'Info: <code>' + escapeHtml(data.text) + '</code>', { ...additionOptions, parse_mode: 'HTML' }).catch(catchHandle);
+                this.sendMessage(
+                    message.chat.id,
+                    'Info: <code>' + escapeHtml(data.text) + '</code>',
+                    {
+                        ...additionOptions,
+                        parse_mode: 'HTML'
+                    }
+                ).catch(catchHandle);
             });
         }
     }
@@ -524,7 +537,7 @@ export class ManagerEngine {
             // just give up
             this.scheduleInline(inlineMessageId, () => this.api.editMessageText(`Error: unknown language ${language}`, {
                 inline_message_id: inlineMessageId
-            }))
+            })).catch(catchHandle);
 
             return
         }
@@ -637,7 +650,7 @@ export class ManagerEngine {
                     inline_message_id: inlineMessageId,
                     parse_mode: 'HTML'
                 }
-            ))
+            )).catch(catchHandle);
         }
 
         const getTotalLength = () => stdout.length + stderr.length + compileError.length
