@@ -5,13 +5,11 @@ import config = require("../config");
 import TelegramBot = require('node-telegram-bot-api');
 import request = require('request');
 import { sessionTest } from "./session/test";
-import { runContinuable } from "./utils/continuable";
-import { createContinuableContext, createStaticContext } from "./session-context";
 import { RepositorySession } from "./repository/session";
-import { Session } from "./interfaces";
 import { sessionCreateQuest } from "./session/create-quest";
 import { INLINE_QUERY_RESULT_IDENTIFIER, ManagerEngine } from "./manager/engine";
-
+import { ManagerSession } from "./manager/session";
+import { sessionPostCreateQuest } from "./session/post/create-quest";
 let api = new TelegramBot(config.token)
 
 let botInfo: TelegramBot.User | null = null;
@@ -36,6 +34,7 @@ setInterval(function () {
 const sessionRepo = new RepositorySession(path.resolve(__dirname, '../', config.session_dir))
 
 let managerEngine: ManagerEngine
+let managerSession: ManagerSession
 
 fs.readdir('./docker_image/test', async function (err, files) {
     if (err) {
@@ -67,16 +66,21 @@ fs.readdir('./docker_image/test', async function (err, files) {
         console.log(data);
         botInfo = data;
 
-        // Initialize sessions
-        const sessions = await sessionRepo.list()
-
-        for (let session of sessions) {
-            continueSession(api, session)
-                .catch(catchHandle)
-        }
-
         // Initialize engine
         managerEngine = new ManagerEngine(runnerList, api, config)
+
+        // Initialize sessions
+        managerSession = new ManagerSession(api, sessionRepo, managerEngine)
+        managerSession.registerHandler(
+            'create-quest',
+            sessionCreateQuest,
+            sessionPostCreateQuest
+        )
+        managerSession.registerHandler(
+            'test',
+            sessionTest
+        )
+        await managerSession.load()
 
         api.startPolling();
 
@@ -87,29 +91,7 @@ fs.readdir('./docker_image/test', async function (err, files) {
     }
 })
 
-const sessionTypes = {
-    'test': sessionTest,
-    'createQuest': sessionCreateQuest
-}
-
-async function continueSession(api: TelegramBot, session: Session) {
-    try {
-        await runContinuable(
-            (sessionTypes as any)[session.type],
-            createStaticContext(api),
-            createContinuableContext(api),
-            session.state,
-            (s) => sessionRepo.set({ ...session, state: s }),
-            ...session.args
-        )
-    } catch (err) {
-        catchHandle(err)
-    }
-
-    await sessionRepo.delete(session.id)
-}
-
-function catchHandle(err: { stack: any; }) {
+export function catchHandle(err: { stack: any; }) {
     console.error(err.stack);
 }
 
@@ -167,33 +149,11 @@ Currently supported: ${runnerList.map(function (i) {return i.type}).join(', ')}
     }
 
     if (message.text != undefined && message.text.match(/\/test(@[^\s]+)?$/)) {
-        const sessionId = Math.random().toString(16).slice(2)
-
-        runContinuable(
-            sessionTypes.test,
-            createStaticContext(api),
-            createContinuableContext(api),
-            null,
-            (s) => sessionRepo.set({ id: sessionId, state: s, type: 'test', args: [message] }),
-            message
-        )
-        .catch(catchHandle)
-        .then(() => sessionRepo.delete(sessionId))
+        managerSession.start('test', message)
     }
 
     if (message.text != undefined && message.text.match(/\/create_quest(@[^\s]+)?$/)) {
-        const sessionId = Math.random().toString(16).slice(2)
-
-        runContinuable(
-            sessionTypes.createQuest,
-            createStaticContext(api),
-            createContinuableContext(api),
-            null,
-            (s) => sessionRepo.set({ id: sessionId, state: s, type: 'createQuest', args: [message] }),
-            message
-        )
-        .catch(catchHandle)
-        .then(() => sessionRepo.delete(sessionId))
+        managerSession.start('create-quest', message)
     }
     
     if (message.text != undefined && message.text.match(/^\/pastebin(_i(nteractive)?)?(_d(ebug)?)?(@[^\s]+)?(\s|\r|\n|$)/)) {

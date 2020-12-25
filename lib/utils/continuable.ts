@@ -11,6 +11,8 @@ import {
 } from '../interfaces'
 
 import * as Typeson from 'typeson-registry/dist/all.js';
+import type * as TelegramBot from 'node-telegram-bot-api';
+
 const {presets: {structuredCloningThrowing}} = Typeson;
 const tson = new Typeson().register([
     structuredCloningThrowing
@@ -32,6 +34,7 @@ export const runContinuable = <
     continuableExtension: U,
     oldState: ContinuableState | null,
     updateHook: ContinuableUpdateHook | null,
+    message: TelegramBot.Message,
     ...args: V
 ): W => {
     const state: ContinuableState = oldState == null ? makeState() : tson.parse(tson.stringify(oldState))
@@ -151,5 +154,5 @@ export const runContinuable = <
         }
     }) as any
 
-    return asyncFn(mergedContext, ...args)
+    return asyncFn(mergedContext, message, ...args)
 }

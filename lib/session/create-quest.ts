@@ -25,14 +25,42 @@ export const sessionCreateQuest = async (
         "Please enter the Quest example output\nThe leading and trailing space will be removed,\nand line will end with \\n"
     )
 
-    var input = await ctx.question(
-        msg.chat.id,
-        "Please enter the Quest input\nThe leading and trailing space will be removed,\nand line will end with \\n"
-    )
+    const samples: {
+        input: string,
+        output: string
+    }[] = []
 
-    var output = await ctx.question(
-        msg.chat.id,
-        "Please enter the Quest output\nThe leading and trailing space will be removed,\nand line will end with \\n"
+    do {
+        const input = await ctx.question(
+            msg.chat.id,
+            "Please enter the Quest input\nThe leading and trailing space will be removed,\nand line will end with \\n"
+        )
+
+        const output = await ctx.question(
+            msg.chat.id,
+            "Please enter the Quest output\nThe leading and trailing space will be removed,\nand line will end with \\n"
+        )
+
+        samples.push({
+            input: input.text ?? '',
+            output: output.text ?? ''
+        })
+    } while (
+        samples.length < 5 &&
+        await ctx.options(
+            msg.chat.id,
+            'Add more?',
+            [
+                {
+                    text: 'yes',
+                    value: 'y' as const
+                },
+                {
+                    text: 'no',
+                    value: 'n' as const
+                }
+            ]
+        ) === 'y'
     )
 
     const encode = (str: string) => str.replace(/<|>|&/g, function (hit) {
@@ -50,6 +78,17 @@ export const sessionCreateQuest = async (
         return hit
     })
 
+    const mapInputs = (items: typeof samples) => {
+        let str = ''
+        for (let [k, v] of items.entries()) {
+            str += `Input ${k}:\n`
+            str += `<pre>${encode(v.input)}</pre>\n`
+            str += `Output ${k}:\n`
+            str += `<pre>${encode(v.output)}</pre>\n`
+        }
+        return str
+    }
+
     const result = await ctx.options(
         msg.chat.id,
 `Title:
@@ -60,11 +99,7 @@ Example input:
 <pre>${encode(exampleInput.text ?? '')}</pre>
 Example output:
 <pre>${encode(exampleOutput.text ?? '')}</pre>
-Input:
-<pre>${encode(input.text ?? '')}</pre>
-Output:
-<pre>${encode(output.text ?? '')}</pre>
-Everything looks correct?`,
+${mapInputs(samples)}Everything looks correct?`,
         [
             { text: "Create", value: "ok" as const},
             { text: "Cancel", value: "cancel" as const }
@@ -78,5 +113,14 @@ Everything looks correct?`,
         await ctx.sendMessage(msg.chat.id, 'Quest created')
     } else {
         await ctx.sendMessage(msg.chat.id, 'Cancelled')
+        throw new Error('aborted')
+    }
+
+    return {
+        title: title.text ?? '',
+        description: description.text ?? '',
+        exampleInput: exampleInput.text ?? '',
+        exampleOutput: exampleOutput.text ?? '',
+        samples
     }
 }

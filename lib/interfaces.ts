@@ -77,7 +77,12 @@ export type ContinuableContext<T extends ContinuableFixedExtension, U extends Co
 } & T & UnwrapContinuableExtension<U>
 
 export type BaseContinuableContext = ContinuableContext<{}, {}>
-export type ContinuableFunction<T extends ContinuableFixedExtension, U extends ContinuableContinuableExtension, V extends any[], W> = (context: ContinuableContext<T, U>, ...args: V) => W
+export type ContinuableFunction<
+    T extends ContinuableFixedExtension,
+    U extends ContinuableContinuableExtension,
+    V extends any[],
+    W
+> = (context: ContinuableContext<T, U>, message: TelegramBot.Message,...args: V) => W
 
 export type ContinuableUpdateHook = (state: ContinuableState) => void
 
@@ -100,7 +105,7 @@ export type SessionContext =
 export type Session = {
     id: string
     type: string
-    args: any[],
+    args: [TelegramBot.Message, ...any[]],
     state: ContinuableState
 }
 
