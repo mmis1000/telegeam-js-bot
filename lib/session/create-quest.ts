@@ -1,5 +1,7 @@
-import TelegramBot = require("node-telegram-bot-api");
-import { SessionContext } from "../interfaces";
+import type * as TelegramBot from "node-telegram-bot-api"
+import { runnerList } from "../bot";
+import { AbortError } from "../errors/AbortError";
+import type { SessionContext } from "../interfaces";
 
 export const sessionCreateQuest = async (
     ctx: SessionContext,
@@ -23,6 +25,17 @@ export const sessionCreateQuest = async (
     var exampleOutput = await ctx.question(
         msg.chat.id,
         "Please enter the Quest example output\nThe leading and trailing space will be removed,\nand line will end with \\n"
+    )
+
+    const runners = runnerList.map(i => ({
+        text: i.type,
+        value: i.type
+    }))
+
+    const language = await ctx.options(msg.chat.id, "Select a language for the example program", runners)
+    const exampleCode = await ctx.question(
+        msg.chat.id,
+        "Please enter the example code"
     )
 
     const samples: {
@@ -109,11 +122,8 @@ ${mapInputs(samples)}Everything looks correct?`,
         }
     )
 
-    if (result === 'ok') {
-        await ctx.sendMessage(msg.chat.id, 'Quest created')
-    } else {
-        await ctx.sendMessage(msg.chat.id, 'Cancelled')
-        throw new Error('aborted')
+    if (result !== 'ok') {
+        throw new AbortError('user cancelled')
     }
 
     return {
@@ -121,6 +131,8 @@ ${mapInputs(samples)}Everything looks correct?`,
         description: description.text ?? '',
         exampleInput: exampleInput.text ?? '',
         exampleOutput: exampleOutput.text ?? '',
+        language,
+        exampleCode: exampleCode.text ?? '',
         samples
     }
 }

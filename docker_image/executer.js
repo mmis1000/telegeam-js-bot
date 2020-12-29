@@ -83,8 +83,6 @@ class RunnerInfo {
     this.pidFilePath;
     this._pid = null;
     this.exited = false;
-
-    var self = this;
   }
 
   /**

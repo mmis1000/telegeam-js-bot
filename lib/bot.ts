@@ -10,11 +10,13 @@ import { sessionCreateQuest } from "./session/create-quest";
 import { INLINE_QUERY_RESULT_IDENTIFIER, ManagerEngine } from "./manager/engine";
 import { ManagerSession } from "./manager/session";
 import { sessionPostCreateQuest } from "./session/post/create-quest";
+import { RepositoryQuest } from "./repository/quest";
 let api = new TelegramBot(config.token)
 
 let botInfo: TelegramBot.User | null = null;
 
-let runnerList: { type: string; program: string; }[] = [];
+export let runnerList: { type: string; program: string; }[] = [];
+
 let maxTry = 3;
 let coolDown = 60 * 1000; // +3 minute;
 
@@ -31,7 +33,8 @@ setInterval(function () {
     }
 }, coolDown)
 
-const sessionRepo = new RepositorySession(path.resolve(__dirname, '../', config.session_dir))
+const sessionRepo = new RepositorySession(path.resolve(__dirname, '../', config.saves.sessions))
+export const repositoryQuest = new RepositoryQuest(path.resolve(__dirname, '../', config.saves.quests))
 
 let managerEngine: ManagerEngine
 let managerSession: ManagerSession
@@ -114,7 +117,7 @@ api.on('message', function(message) {
             reply_to_message_id: message.message_id
         }
 
-        let { isInteractive, isHelloWorld, isSilent, language, text } = options
+        let { isInteractive, isHelloWorld, isSilent, language } = options
 
         if (isInteractive && managerEngine.hasInteractiveSession(message.chat.id)) {
             return api.sendMessage(

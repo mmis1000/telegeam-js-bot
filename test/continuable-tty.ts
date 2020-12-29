@@ -2,7 +2,7 @@
 import * as readline from 'readline';
 import { writeFileSync, readFileSync, unlinkSync } from 'fs';
 import { resolve } from 'path';
-import { BaseContinuableContext } from '../lib/interfaces';
+import type { BaseContinuableContext } from '../lib/interfaces';
 
 import * as Typeson from 'typeson-registry/dist/all.js';
 
@@ -74,7 +74,7 @@ try {
     oldData = tson.parse(readFileSync(filename, {encoding: 'utf-8'}))
 } catch (err) {}
 
-runContinuable(async ({ prompt, select, log }) => {
+runContinuable(async ({ prompt, select, log }, msg) => {
     const name = await prompt('what is your name?\n')
 
     const option = await select('what is your favorite language', ['nodejs', 'ruby'])
@@ -96,7 +96,7 @@ runContinuable(async ({ prompt, select, log }) => {
     log('All items: ' + items.join(', '))
 }, methods, methodsContinuable, oldData, (state) => {
     writeFileSync(filename, tson.stringify(state, undefined, 4))
-})
+}, null as never)
 .catch(() => {})
 .then(() => {
     rl.close()

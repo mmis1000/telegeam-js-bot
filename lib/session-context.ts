@@ -1,6 +1,6 @@
 
-import TelegramBot = require('node-telegram-bot-api');
-import { ContinuableContinuableExtension, BaseContinuableContext, ContinuableFixedExtension } from './interfaces'
+import type * as TelegramBot from 'node-telegram-bot-api'
+import type { ContinuableContinuableExtension, BaseContinuableContext, ContinuableFixedExtension } from './interfaces'
 
 const assertStaticExtension = <T extends ContinuableFixedExtension>(arg: T) => arg
 

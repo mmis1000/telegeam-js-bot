@@ -1,26 +1,25 @@
-import { IRepositorySession, Session } from "../interfaces";
+import type { IRepository } from "../interfaces";
 import { promises as fs } from 'fs'
 import * as path from 'path'
 import { TSON } from "../utils/tson";
 import { findOrCreate } from "../utils/array-util";
 import { Runnable } from '../utils/runnable'
+import * as mkdirp from 'mkdirp'
 
 type op = {
     id: string,
     type: string,
-    resolveCallbacks: ((arg: any)=>void)[],
-    rejectCallbacks: ((arg: any)=>void)[],
+    resolveCallbacks: ((arg: any) => void)[],
+    rejectCallbacks: ((arg: any) => void)[],
+    barrierAfter: string[],
+    noMerge: boolean,
     fn: (...args: any[]) => Promise<any>
 }
 
-export class BaseRepository<T extends { id: string }>{
+export class BaseRepository<T extends { id: string }> implements IRepository<T> {
     constructor(private directory: string) {
         this.execute('', 'prepare', async () => {
-            try {
-                const stat = await fs.stat(directory)
-            } catch (err) {
-                await fs.mkdir(directory)
-            }
+            await mkdirp(directory)
         })
     }
 
@@ -33,19 +32,53 @@ export class BaseRepository<T extends { id: string }>{
         }
     })
 
-    protected execute<U> (id: string, type: string, fn: (...args: any[]) => Promise<any>): Promise<U> {
+    protected execute<U>(
+        id: string,
+        type: string,
+        fn: (...args: any[]) => Promise<any>,
+        barrierAfter: string[] = [],
+        noMerge: boolean = false
+    ): Promise<U> {
         return this.runner.updateQueue(ops => {
-            const currentTask: op = findOrCreate(
-                ops,
-                it => it.id === id && it.type === type,
-                () => ({
+            const matchOrBarrier = ops.filter(it => {
+                return it.id === id &&
+                    (it.type === type || it.barrierAfter.includes(type))
+            })
+
+            const forcePush =
+                noMerge ||
+                    matchOrBarrier.length > 0
+                    ? matchOrBarrier[matchOrBarrier.length - 1]!.type !== type
+                    : false
+
+            let currentTask: op
+
+            if (forcePush) {
+                currentTask = {
                     id,
                     type,
                     fn,
                     resolveCallbacks: [],
-                    rejectCallbacks: []
-                })
-            )
+                    rejectCallbacks: [],
+                    noMerge,
+                    barrierAfter
+                }
+                ops.push(currentTask)
+            } else {
+                currentTask = findOrCreate(
+                    ops,
+                    it => it.id === id && it.type === type,
+                    () => ({
+                        id,
+                        type,
+                        fn,
+                        resolveCallbacks: [],
+                        rejectCallbacks: [],
+                        noMerge,
+                        barrierAfter
+                    })
+                )
+            }
 
             return new Promise<U>((resolve, reject) => {
                 // just replace old task
@@ -56,10 +89,10 @@ export class BaseRepository<T extends { id: string }>{
         })
     }
 
-    list(): Promise<Session[]> {
+    list(): Promise<T[]> {
         return this.execute('', 'list', async () => {
             const files = await fs.readdir(this.directory)
-            const results: Session[] = []
+            const results: T[] = []
             for (let filename of files) {
                 if (!/\.json$/.test(filename)) {
                     continue
@@ -73,7 +106,7 @@ export class BaseRepository<T extends { id: string }>{
                     continue
                 }
 
-                const session: Session = TSON.parse(await fs.readFile(fullPath, { encoding: 'utf-8' }))
+                const session: T = TSON.parse(await fs.readFile(fullPath, { encoding: 'utf-8' }))
                 results.push(session)
             }
             return results
@@ -93,7 +126,17 @@ export class BaseRepository<T extends { id: string }>{
         return this.execute(session.id, 'set', async () => {
             const fullPath = path.resolve(this.directory, session.id + '.json')
             return await fs.writeFile(fullPath, serialized)
-        })
+        }, ['get'])
+    }
+
+    update(id: string, reducer: (old: T) => T): Promise<void> {
+        return this.execute(id, 'update', async () => {
+            const fullPath = path.resolve(this.directory, id + '.json')
+            const old = TSON.parse(await fs.readFile(fullPath, { encoding: 'utf-8' }))
+            const newData = reducer(old)
+            const serialized = TSON.stringify(newData, undefined, 4)
+            return await fs.writeFile(fullPath, serialized)
+        }, ['get', 'set', 'delete'], true)
     }
 
     delete(id: string): Promise<void> {

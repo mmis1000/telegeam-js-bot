@@ -41,5 +41,5 @@ config.js
 # build outputs
 build/*
 
-# dev file session
-sessions
+# dev file saves
+saves

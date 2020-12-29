@@ -1,10 +1,10 @@
-import TelegramBot = require("node-telegram-bot-api");
-import { Session } from "../interfaces";
-import { RepositorySession } from "../repository/session";
+import type * as TelegramBot from "node-telegram-bot-api"
+import type { Session, Await } from "../interfaces";
+import type { RepositorySession } from "../repository/session";
 import { createContinuableContext, createStaticContext } from "../session-context";
 import { runContinuable } from "../utils/continuable";
 import { catchHandle } from "../bot"
-import { ManagerEngine } from "./engine";
+import type { ManagerEngine } from "./engine";
 import { AbortError } from "../errors/AbortError";
 
 type SessionDeclaration = {
@@ -55,7 +55,7 @@ export class ManagerSession {
         run: T,
         success: ((
             message: TelegramBot.Message,
-            response: ReturnType<typeof run>,
+            response: Await<ReturnType<typeof run>>,
             manager: ManagerEngine,
             api: TelegramBot
         ) => any) = sessionPostDefault,

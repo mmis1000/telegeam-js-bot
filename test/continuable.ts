@@ -1,4 +1,4 @@
-import {
+import type {
     BaseContinuableContext,
     ContinuableContext
 } from '../lib/interfaces'
@@ -30,7 +30,7 @@ const b = {
 
 type Context = ContinuableContext<typeof a, typeof b>
 
-const program = async (ctx: Context, A: string) => {
+const program = async (ctx: Context, msg: any, A: string) => {
     const b = await ctx.sendMessage('')
     const c = await ctx.question('aaa', ['1', '2'])
     return [A, b, c]
@@ -43,7 +43,7 @@ const log = (c: any) => {
 }
 
 const case1 = async () => {
-    return runContinuable(program, a, b, null, log, '1')
+    return runContinuable(program, a, b, null, log, null as never, '1')
 }
 
 const case2 = async () => {
@@ -63,7 +63,7 @@ const case2 = async () => {
             }
         ],
         data: {}
-    }, log, '1')
+    }, log, null as never, '1')
 }
 
 async function main () {

@@ -1,5 +1,5 @@
-import TelegramBot = require("node-telegram-bot-api");
-import { SessionContext } from "../interfaces";
+import type * as TelegramBot from "node-telegram-bot-api";
+import type { SessionContext } from "../interfaces";
 
 export const sessionTest = async (
     ctx: SessionContext,

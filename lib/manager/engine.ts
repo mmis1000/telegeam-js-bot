@@ -1,9 +1,8 @@
-import type { Engine, EngineRunner } from '../interfaces';
+import type { Engine, EngineRunner, EngineRunnerParsedExitData } from '../interfaces';
 import type * as Config from '../../config';
 import * as TelegramBot from 'node-telegram-bot-api'
 import runner = require("../utils/docker-engine");
 import { Runnable } from '../utils/runnable';
-import c = require('../../docker_image/runner/c');
 import { sleep } from '../utils/promise-utils';
 import { formalizeMessage, formatMessage, groupMessage, MessageSnippet } from '../utils/text-group-utils';
 import { findOrCreate } from '../utils/array-util';
@@ -450,7 +449,7 @@ export class ManagerEngine {
             }
 
             try {
-                let res = JSON.parse(data.text);
+                let res: EngineRunnerParsedExitData = JSON.parse(data.text);
 
                 if (!isSilent) {
                     if (res.time) {
@@ -558,7 +557,7 @@ export class ManagerEngine {
         let badResponse = false
 
         let exited = false
-        let exitCode = 0
+        let exitCode: number | null = 0
         let exitSignal: any = null
 
         let truncated = false
@@ -704,7 +703,7 @@ export class ManagerEngine {
             clearTimeout(id)
 
             try {
-                let res: { code: number, signal: string | number | null } = JSON.parse(data.text);
+                let res: EngineRunnerParsedExitData = JSON.parse(data.text);
                 exited = true
                 exitCode = res.code
                 exitSignal = res.signal
@@ -713,6 +712,61 @@ export class ManagerEngine {
                 badResponse = true
                 sendMessage()
             }
+        })
+    }
+
+
+
+    executeCodeHeadless (language: string, code: string, stdin: string = '') {
+        if (!this.runnerList.find(it => it.type === language)) {
+            return Promise.reject(new Error(`Unknown language: ${language}`))
+        }
+
+        type Results = {
+            stdout: string
+            stderr: string
+            throw: string
+            error: string
+            log: string
+            exit: EngineRunnerParsedExitData
+        }
+
+        return new Promise<Results>((resolve ,reject) => {
+            let runner = this.engine.run({
+                type: language,
+                program: code,
+                user: 'debian'
+            })
+
+            if (stdin) {
+                runner.write(stdin)
+                runner.write(null)
+            }
+    
+            const results = {
+                stdout: '',
+                stderr: '',
+                throw: '',
+                error: '',
+                log: ''
+            }
+    
+            runner.on('stdout', (data) => results.stdout += data.text)
+            runner.on('stderr', (data) => results.stderr += data.text)
+            runner.on('throw', (data) => results.throw += data.text)
+            runner.on('error', (data) => results.error += data.text)
+            runner.on('log', (data) => results.log += data.text)
+            runner.on('exit', (data) => {
+                try {
+                    let res: EngineRunnerParsedExitData = JSON.parse(data.text);
+                    resolve({
+                        ...results,
+                        exit: res
+                    })
+                } catch (err) {
+                    reject(err)
+                }
+            })
         })
     }
 }

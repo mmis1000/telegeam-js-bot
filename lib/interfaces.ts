@@ -6,10 +6,31 @@ export type Engine = import('events').EventEmitter & {
     run (conf: Program): EngineRunner
 }
 
+export type RunnerStreamData = {
+    type: string,
+    text: string,
+    language: string,
+    id?: string
+}
+
+export type EngineRunnerParsedExitData = {
+    code: number | null,
+    signal: string | number | null,
+    time?: [string, string][]
+}
+
+
 export type EngineRunner = import('events').EventEmitter & {
     id: string,
     write (arg: any): void,
     kill (signal: number | string): void
+
+    on (event: 'stdout', cb: (data: RunnerStreamData) => void): EngineRunner
+    on (event: 'stderr', cb: (data: RunnerStreamData) => void): EngineRunner
+    on (event: 'throw', cb: (data: RunnerStreamData) => void): EngineRunner
+    on (event: 'error', cb: (data: RunnerStreamData) => void): EngineRunner
+    on (event: 'log', cb: (data: RunnerStreamData) => void): EngineRunner
+    on (event: 'exit', cb: (data: RunnerStreamData) => void): EngineRunner
 }
 
 export type Program = {
@@ -115,7 +136,30 @@ export interface IRepository<T extends { id: string }> {
     get(id: string): Promise<T>
     set(session: T): Promise<void>
     delete(id: string): Promise<void>
+    update(id: string, cb: (old: T) => T): Promise<void>
 }
 
-export interface IRepositorySession extends IRepository<Session> {
+export interface IRepositorySession extends IRepository<Session> {}
+
+export type Await<T> = T extends {
+    then(onfulfilled?: (value: infer U) => unknown): unknown;
+} ? U : T;
+
+export type Quest = {
+    title: string,
+    description: string,
+    exampleInput: string,
+    exampleOutput: string,
+    language: string,
+    exampleCode: string,
+    samples: {
+        input: string,
+        output: string
+    }[]
 }
+
+export type QuestAnswered = Quest & {
+    id: string,
+    users: TelegramBot.User[]
+}
+export interface IRepositoryQuest extends IRepository<QuestAnswered> {}
