@@ -73,7 +73,7 @@ export function createEngine(name: string = guidGenerator(), opts: { memory?: nu
             // let runner handle it;
             return;
         }
-        console.error(cmd.test);
+        console.error(cmd.text);
     })
     
     engine.destroy = function() {

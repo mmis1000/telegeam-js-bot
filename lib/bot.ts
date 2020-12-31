@@ -349,7 +349,7 @@ api.on('chosen_inline_result', result => {
         // remove the useless button
         api.editMessageText('Compiler bot: Starting the worker...', {
             inline_message_id: result.inline_message_id!
-        })
+        }).catch(catchHandle)
 
         managerEngine.executeCodeInline(result)
     }
