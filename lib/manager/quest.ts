@@ -24,13 +24,13 @@ export class ManagerQuest {
     ) {}
 
     getQuestMessage (questDraft: QuestDraft) {
-        return `Title:
+        return `<b>Title:</b>
 <pre>${escapeHtml(questDraft.title)}</pre>
-Description:
+<b>Description:</b>
 <pre>${escapeHtml(questDraft.description)}</pre>
-Example Input:
+<b>Example Input:</b>
 <pre>${escapeHtml(questDraft.exampleInput)}</pre>
-Example Output:
+<b>Example Output:</b>
 <pre>${escapeHtml(questDraft.exampleOutput)}</pre>`
     }
 
@@ -53,7 +53,7 @@ Example Output:
                 },
                 reply_markup: {
                     inline_keyboard: [[{
-                        text: 'Answer the question',
+                        text: 'Answer the quest',
                         url: `https://t.me/${this.self.username!}?start=${ANSWER_QUEST_START_IDENTIFIER}_${newQuestId}`
                     }]]
                 }
@@ -83,11 +83,11 @@ Example Output:
         if (!compareNormalized(exampleResult.stdout, quest.exampleOutput)) {
             this.api.sendMessage(message.from!.id, `
 <b>Failed, the example output didn\'t match.</b>
-Input:
+<b>Input:</b>
 <pre>${escapeHtml(quest.exampleInput)}</pre>
-Expect:
+<b>Expect:</b>
 <pre>${escapeHtml(quest.exampleOutput)}</pre>
-Actual:
+<b>Actual:</b>
 <pre>${escapeHtml(exampleResult.stdout)}</pre>
 `, {
                 reply_to_message_id: message.message_id,
@@ -137,7 +137,7 @@ ${results.map((it, index) => 'Sample ' + (index + 1) + ': ' + (it ? 'Success' : 
             disable_web_page_preview: true,
             reply_markup: {
                 inline_keyboard: [[{
-                    text: 'Answer the question',
+                    text: 'Answer the quest',
                     url: `https://t.me/${this.self.username!}?start=${ANSWER_QUEST_START_IDENTIFIER}_${quest.id}`
                 }]]
             }

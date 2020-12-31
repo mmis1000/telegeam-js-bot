@@ -9,22 +9,34 @@ export const sessionCreateQuest = async (
 ) => {
     var title = await ctx.question(
         msg.chat.id,
-        "Please enter the Quest name"
+        "<b>Please enter the Quest name</b>",
+        {
+            parse_mode: 'HTML'
+        }
     )
 
     var description = await ctx.question(
         msg.chat.id,
-        "Please enter the Quest description"
+        "<b>Please enter the Quest description</b>",
+        {
+            parse_mode: 'HTML'
+        }
     )
 
     var exampleInput = await ctx.question(
         msg.chat.id,
-        "Please enter the Quest example input\nThe leading and trailing space will be removed,\nand line will end with \\n"
+        "<b>Please enter the Quest example input</b>\nThe leading and trailing space will be removed,\nand line will end with \\n",
+        {
+            parse_mode: 'HTML'
+        }
     )
 
     var exampleOutput = await ctx.question(
         msg.chat.id,
-        "Please enter the Quest example output\nThe leading and trailing space will be removed,\nand line will end with \\n"
+        "<b>Please enter the Quest example output</b>\nThe leading and trailing space will be removed,\nand line will end with \\n",
+        {
+            parse_mode: 'HTML'
+        }
     )
 
     const runners = runnerList.map(i => ({
@@ -47,12 +59,18 @@ export const sessionCreateQuest = async (
     do {
         const input = await ctx.question(
             msg.chat.id,
-            "Please enter the Quest input\nThe leading and trailing space will be removed,\nand line will end with \\n"
+            "<b>Please enter the Quest input</b>\nThe leading and trailing space will be removed,\nand line will end with \\n",
+            {
+                parse_mode: 'HTML'
+            }
         )
 
         const output = await ctx.question(
             msg.chat.id,
-            "Please enter the Quest output\nThe leading and trailing space will be removed,\nand line will end with \\n"
+            "<b>Please enter the Quest output</b>\nThe leading and trailing space will be removed,\nand line will end with \\n",
+            {
+                parse_mode: 'HTML'
+            }
         )
 
         samples.push({
@@ -95,9 +113,9 @@ export const sessionCreateQuest = async (
     const mapInputs = (items: typeof samples) => {
         let str = ''
         for (let [k, v] of items.entries()) {
-            str += `Input ${k}:\n`
+            str += `<b>Input ${k + 1}:</b>\n`
             str += `<pre>${encode(v.input)}</pre>\n`
-            str += `Output ${k}:\n`
+            str += `<b>Output ${k + 1}:</b>\n`
             str += `<pre>${encode(v.output)}</pre>\n`
         }
         return str
@@ -105,18 +123,19 @@ export const sessionCreateQuest = async (
 
     const result = await ctx.options(
         msg.chat.id,
-`Title:
+`<b>Title:</b>
 <pre>${encode(title.text ?? '')}</pre>
-Description
+<b>Description</b>
 <pre>${encode(description.text ?? '')}</pre>
-Example input:
+<b>Example input:</b>
 <pre>${encode(exampleInput.text ?? '')}</pre>
-Example output:
+<b>Example output:</b>
 <pre>${encode(exampleOutput.text ?? '')}</pre>
-Example Language: <code>${language}</code>
-Example Code:
+<b>Example Language:</b>
+<pre>${language}</pre>
+<b>Example Code:</b>
 <pre>${encode(exampleCode.text ?? '')}</pre>
-${mapInputs(samples)}Everything looks correct?`,
+${mapInputs(samples)}<b>Everything looks correct?</b>`,
         [
             { text: "Create", value: "ok" as const},
             { text: "Cancel", value: "cancel" as const }

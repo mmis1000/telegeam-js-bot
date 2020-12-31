@@ -1,5 +1,5 @@
 import type * as TelegramBot from "node-telegram-bot-api";
-import { repositoryQuest, runnerList } from "../bot";
+import { managerQuest, repositoryQuest, runnerList } from "../bot";
 import { AbortError } from "../errors/AbortError";
 import type { SessionContext } from "../interfaces";
 
@@ -20,7 +20,16 @@ export const sessionAnswerQuest = async (
         value: i.type
     }))
 
-    const language = await ctx.options(msg.chat.id, "Select a language to answer the quest", runners)
+    const questText = managerQuest.getQuestMessage(quest)
+
+    const language = await ctx.options(
+        msg.chat.id,
+        questText + "\n\n<b>Select a language to answer the quest</b>\nInput comes from standard input",
+        runners,
+        {
+            parse_mode: 'HTML'
+        }
+    )
 
     const code = await ctx.question(
         msg.chat.id,
