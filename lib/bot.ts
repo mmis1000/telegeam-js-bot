@@ -368,8 +368,6 @@ function parseCommand (text: string) {
 
     let language = languageArr[1];
     
-    console.log(language);
-    
     let isSilent = !language.match(/_d(ebug)?$/);
     language = language.replace(/_d(ebug)?$/, '');
     
