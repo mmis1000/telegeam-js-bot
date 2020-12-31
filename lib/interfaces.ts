@@ -130,6 +130,13 @@ export type Session = {
     state: ContinuableState
 }
 
+export type OnlyPrimitiveKeys<T> = {
+    [K in keyof T]: T[K] extends (string|number|boolean) ? K : never
+}[keyof T]
+
+export type OnlyPrimitiveProp<T> = {
+    [K in OnlyPrimitiveKeys<T>]: T[K]
+}
 
 export interface IRepository<T extends { id: string }> {
     list(): Promise<T[]>
@@ -137,6 +144,7 @@ export interface IRepository<T extends { id: string }> {
     set(session: T): Promise<void>
     delete(id: string): Promise<void>
     update(id: string, cb: (old: T) => T): Promise<void>
+    find(query: Partial<OnlyPrimitiveProp<T>>): Promise<T[]>
 }
 
 export interface IRepositorySession extends IRepository<Session> {}
@@ -145,7 +153,7 @@ export type Await<T> = T extends {
     then(onfulfilled?: (value: infer U) => unknown): unknown;
 } ? U : T;
 
-export type Quest = {
+export type QuestSpec = {
     title: string,
     description: string,
     exampleInput: string,
@@ -158,8 +166,15 @@ export type Quest = {
     }[]
 }
 
-export type QuestAnswered = Quest & {
-    id: string,
-    users: TelegramBot.User[]
+export type QuestDraft = QuestSpec & {
+    id: string
+    author: number
 }
-export interface IRepositoryQuest extends IRepository<QuestAnswered> {}
+
+export type Quest = QuestDraft & {
+    users: TelegramBot.User[],
+    message_id: NonNullable<TelegramBot.ChosenInlineResult['inline_message_id']>
+}
+
+export interface IRepositoryQuestDraft extends IRepository<QuestDraft> {}
+export interface IRepositoryQuest extends IRepository<Quest> {}

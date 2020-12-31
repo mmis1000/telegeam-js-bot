@@ -3,6 +3,7 @@ module.exports = {
     image_name: 'mmis1000/lang-runner:0.1.5.1',
     saves: {
         sessions: './saves/sessions',
+        questDrafts: './saves/quest-drafts',
         quests: './saves/quests'
     },
     engineOpts: {

@@ -1,10 +1,8 @@
 import type * as TelegramBot from "node-telegram-bot-api"
-import type { Session, Await } from "../interfaces";
-import type { RepositorySession } from "../repository/session";
+import type { Session, Await, IRepositorySession } from "../interfaces";
 import { createContinuableContext, createStaticContext } from "../session-context";
 import { runContinuable } from "../utils/continuable";
 import { catchHandle } from "../bot"
-import type { ManagerEngine } from "./engine";
 import { AbortError } from "../errors/AbortError";
 
 type SessionDeclaration = {
@@ -12,13 +10,11 @@ type SessionDeclaration = {
     success: (
         message: TelegramBot.Message,
         response: any,
-        manager: ManagerEngine,
         api: TelegramBot
     ) => any
     error: (
         message: TelegramBot.Message,
         error: any,
-        manager: ManagerEngine,
         api: TelegramBot
     ) => any
 }
@@ -28,7 +24,6 @@ export const sessionPostDefault= () => {}
 export const sessionErrorDefault= (
     message: TelegramBot.Message,
     error: any,
-    manager: ManagerEngine,
     api: TelegramBot
 ) => {
     if (error instanceof AbortError) {
@@ -46,8 +41,7 @@ export class ManagerSession {
 
     constructor (
         private api: TelegramBot,
-        private sessionRepo: RepositorySession,
-        private engineManager: ManagerEngine
+        private sessionRepo: IRepositorySession,
     ) {}
 
     registerHandler<T extends (...args: any[]) => Promise<any>> (
@@ -56,13 +50,11 @@ export class ManagerSession {
         success: ((
             message: TelegramBot.Message,
             response: Await<ReturnType<typeof run>>,
-            manager: ManagerEngine,
             api: TelegramBot
         ) => any) = sessionPostDefault,
         error: ((
             message: TelegramBot.Message,
             error: any,
-            manager: ManagerEngine,
             api: TelegramBot
         ) => any) = sessionErrorDefault
     ) {
@@ -73,7 +65,7 @@ export class ManagerSession {
         })
     }
 
-    async start(type: string, message: TelegramBot.Message) {
+    async start(type: string, message: TelegramBot.Message, ...args: any[]) {
         const sessionId = Math.random().toString(16).slice(2);
         const handler = this.sessionHandlers.get(type)
         if (handler == null) {
@@ -86,13 +78,14 @@ export class ManagerSession {
                 createStaticContext(this.api),
                 createContinuableContext(this.api),
                 null,
-                (s) => this.sessionRepo.set({ id: sessionId, state: s, type: type, args: [message] }),
-                message
+                (s) => this.sessionRepo.set({ id: sessionId, state: s, type: type, args: [message, ...args] }),
+                message,
+                ...args
             ) as any)
 
-            await handler.success(message, res, this.engineManager, this.api)
+            await handler.success(message, res, this.api)
         } catch (err) {
-            await handler.error(message, err, this.engineManager, this.api)
+            await handler.error(message, err, this.api)
         } finally {
             await this.sessionRepo.delete(sessionId).catch(catchHandle)
         }
@@ -129,9 +122,9 @@ export class ManagerSession {
                 args
             )
 
-            await handler.success(message, res, this.engineManager, this.api)
+            await handler.success(message, res, this.api)
         } catch (err) {
-            await handler.error(message, err, this.engineManager, this.api)
+            await handler.error(message, err, this.api)
         } finally {
             await this.sessionRepo.delete(session.id).catch(catchHandle)
         }

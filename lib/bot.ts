@@ -2,15 +2,22 @@ import fs = require("fs");
 import path = require("path");
 
 import config = require("../config");
-import TelegramBot = require('node-telegram-bot-api');
 import request = require('request');
+
+import * as TelegramBot from 'node-telegram-bot-api';
+import type { IRepositoryQuest, IRepositoryQuestDraft, IRepositorySession } from "./interfaces";
 import { sessionTest } from "./session/test";
 import { RepositorySession } from "./repository/session";
 import { sessionCreateQuest } from "./session/create-quest";
-import { INLINE_QUERY_RESULT_IDENTIFIER, ManagerEngine } from "./manager/engine";
+import { INLINE_RUN_QUERY_RESULT_IDENTIFIER, ManagerEngine } from "./manager/engine";
 import { ManagerSession } from "./manager/session";
 import { sessionPostCreateQuest } from "./session/post/create-quest";
+import { RepositoryQuestDraft } from "./repository/quest-draft";
+import { ANSWER_QUEST_START_IDENTIFIER, INLINE_QUEST_QUERY_RESULT_IDENTIFIER, ManagerQuest } from "./manager/quest";
 import { RepositoryQuest } from "./repository/quest";
+import { sessionAnswerQuest } from "./session/answer-quest";
+import { sessionPostAnswerQuest } from "./session/post/answer-quest";
+
 let api = new TelegramBot(config.token)
 
 let botInfo: TelegramBot.User | null = null;
@@ -33,11 +40,13 @@ setInterval(function () {
     }
 }, coolDown)
 
-const sessionRepo = new RepositorySession(path.resolve(__dirname, '../', config.saves.sessions))
-export const repositoryQuest = new RepositoryQuest(path.resolve(__dirname, '../', config.saves.quests))
+export const repositorySession: IRepositorySession = new RepositorySession(path.resolve(__dirname, '../', config.saves.sessions))
+export const repositoryQuestDraft: IRepositoryQuestDraft = new RepositoryQuestDraft(path.resolve(__dirname, '../', config.saves.questDrafts))
+export const repositoryQuest: IRepositoryQuest = new RepositoryQuest(path.resolve(__dirname, '../', config.saves.quests))
 
-let managerEngine: ManagerEngine
-let managerSession: ManagerSession
+export let managerEngine: ManagerEngine
+export let managerSession: ManagerSession
+export let managerQuest: ManagerQuest
 
 fs.readdir('./docker_image/test', async function (err, files) {
     if (err) {
@@ -73,17 +82,25 @@ fs.readdir('./docker_image/test', async function (err, files) {
         managerEngine = new ManagerEngine(runnerList, api, config)
 
         // Initialize sessions
-        managerSession = new ManagerSession(api, sessionRepo, managerEngine)
+        managerSession = new ManagerSession(api, repositorySession)
         managerSession.registerHandler(
             'create-quest',
             sessionCreateQuest,
             sessionPostCreateQuest
         )
         managerSession.registerHandler(
+            'answer-quest',
+            sessionAnswerQuest,
+            sessionPostAnswerQuest
+        )
+        managerSession.registerHandler(
             'test',
             sessionTest
         )
         await managerSession.load()
+
+        // Initialize quests
+        managerQuest = new ManagerQuest(api, data, repositoryQuestDraft, repositoryQuest)
 
         api.startPolling();
 
@@ -106,6 +123,8 @@ api.on('message', function(message) {
     if (!message) return;
     if (!message.from) return;
     if (!botInfo) return
+
+    console.log(message)
     // console.log('got message');
     // console.log(message);
 
@@ -136,8 +155,16 @@ api.on('message', function(message) {
         
         return managerEngine.executeCode(message, language, message.text, isHelloWorld, isSilent, isInteractive);
     }
+
+    if (message.text != null && message.text.match(/\/start(@[^\s]+)?(\s|\n|$)/)) {
+        const content = message.text.replace(/\/start(@[^\s]+)?/, '').trim()
+        if (content.startsWith(ANSWER_QUEST_START_IDENTIFIER + '_')) {
+            const questId = content.replace(ANSWER_QUEST_START_IDENTIFIER + '_', '')
+            managerSession.start('answer-quest', message, questId)
+        }
+    }
     
-    if (message.text != undefined && message.text.match(/\/start(@[^\s]+)?$/)) {
+    if (message.text != null && message.text.match(/\/start(@[^\s]+)?$/)) {
         let additionOptions = {
             reply_to_message_id: message.message_id
         }
@@ -285,12 +312,21 @@ This command will try to fetch the content of the pastebin paste and execute it.
     }
 })
 
-api.on('inline_query', message => {
+api.on('inline_query', async (message) => {
+    if (message.query.trim() === '') {
+        const results = await managerQuest.createQuestList(message)
+        api.answerInlineQuery(message.id, results, {
+            cache_time: 0,
+            is_personal: true
+        }).catch(catchHandle)
+        return
+    }
+
     const results: TelegramBot.InlineQueryResultArticle[] = []
 
     for (let runner of runnerList) {
         results.push({
-            id: INLINE_QUERY_RESULT_IDENTIFIER + runner.type,
+            id: INLINE_RUN_QUERY_RESULT_IDENTIFIER + runner.type,
             type: 'article',
             title: runner.type,
             input_message_content: {
@@ -304,21 +340,22 @@ api.on('inline_query', message => {
         })
     }
     
-    if (message.query.trim() === '') {
-        return
-    }
 
     api.answerInlineQuery(message.id, results).catch(catchHandle)
 })
 
 api.on('chosen_inline_result', result => {
-    if (result.result_id && result.result_id.startsWith(INLINE_QUERY_RESULT_IDENTIFIER)) {
+    if (result.result_id && result.result_id.startsWith(INLINE_RUN_QUERY_RESULT_IDENTIFIER)) {
         // remove the useless button
         api.editMessageText('Compiler bot: Starting the worker...', {
             inline_message_id: result.inline_message_id!
         })
 
         managerEngine.executeCodeInline(result)
+    }
+
+    if (result.result_id && result.result_id.startsWith(INLINE_QUEST_QUERY_RESULT_IDENTIFIER)) {
+        managerQuest.handleChosenInlineResult(result)
     }
 })
 

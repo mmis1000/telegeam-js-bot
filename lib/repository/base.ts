@@ -1,4 +1,4 @@
-import type { IRepository } from "../interfaces";
+import type { IRepository, OnlyPrimitiveProp } from "../interfaces";
 import { promises as fs } from 'fs'
 import * as path from 'path'
 import { TSON } from "../utils/tson";
@@ -20,6 +20,18 @@ export class BaseRepository<T extends { id: string }> implements IRepository<T> 
     constructor(private directory: string) {
         this.execute('', 'prepare', async () => {
             await mkdirp(directory)
+        })
+    }
+    async find(query: Partial<OnlyPrimitiveProp<T>>): Promise<T[]> {
+        const items = await this.list()
+        return items.filter(item => {
+            for (let key in query) {
+                if ((query as any)[key] !== (item as any)[key]) {
+                    return false
+                }
+            }
+
+            return true
         })
     }
 
@@ -47,9 +59,9 @@ export class BaseRepository<T extends { id: string }> implements IRepository<T> 
 
             const forcePush =
                 noMerge ||
-                    matchOrBarrier.length > 0
+                (matchOrBarrier.length > 0
                     ? matchOrBarrier[matchOrBarrier.length - 1]!.type !== type
-                    : false
+                    : false)
 
             let currentTask: op
 

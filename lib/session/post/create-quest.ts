@@ -1,7 +1,6 @@
 import type * as TelegramBot from "node-telegram-bot-api";
-import { catchHandle, repositoryQuest } from "../../bot";
+import { catchHandle, managerEngine, repositoryQuestDraft } from "../../bot";
 import type { Await } from "../../interfaces";
-import type { ManagerEngine } from "../../manager/engine";
 import type { sessionCreateQuest } from "../create-quest";
 
 const compareNormalized = (str1: string, str2: string) => {
@@ -17,9 +16,9 @@ const abort = (errorMsg: string, api: TelegramBot, message: TelegramBot.Message)
 export const sessionPostCreateQuest = async (
     message: TelegramBot.Message,
     result: Await<ReturnType<typeof sessionCreateQuest>>,
-    manager: ManagerEngine,
     api: TelegramBot
 ) => {
+    const manager = managerEngine
     const runResult = await manager.executeCodeHeadless(result.language, result.exampleCode, result.exampleInput)
 
     if (!compareNormalized(runResult.stdout, result.exampleOutput)) {
@@ -40,10 +39,10 @@ Actually: ${runResult.stdout}`, api, message)
 
     const questId = Math.random().toString(16).slice(2);
 
-    await repositoryQuest.set({
+    await repositoryQuestDraft.set({
         ...result,
         id: questId,
-        users: []
+        author: message.from!.id
     })
 
     api.sendMessage(message.chat.id, 'Quest created', {

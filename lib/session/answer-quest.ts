@@ -1,0 +1,36 @@
+import type * as TelegramBot from "node-telegram-bot-api";
+import { repositoryQuest, runnerList } from "../bot";
+import { AbortError } from "../errors/AbortError";
+import type { SessionContext } from "../interfaces";
+
+export const sessionAnswerQuest = async (
+    ctx: SessionContext,
+    msg: TelegramBot.Message,
+    questId: string
+) => {   
+    const quest = await repositoryQuest.get(questId)
+
+    if (quest.users.find(it => it.id === msg.from!.id)) {
+        ctx.sendMessage(msg.chat.id, "Sorry, you have finished the quest.")
+        throw new AbortError('user answered')
+    }
+
+    const runners = runnerList.map(i => ({
+        text: i.type,
+        value: i.type
+    }))
+
+    const language = await ctx.options(msg.chat.id, "Select a language to answer the quest", runners)
+
+    const code = await ctx.question(
+        msg.chat.id,
+        "Type the code here"
+    )
+
+    return {
+        questId,
+        language,
+        codeMessage: code,
+        code: code.text ?? ''
+    }
+}

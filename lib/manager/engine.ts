@@ -80,7 +80,7 @@ type InlineOp = {
     rejectFunctions: ((...args: any[]) => any)[]
 }
 
-export const INLINE_QUERY_RESULT_IDENTIFIER = 'run-inline:'
+export const INLINE_RUN_QUERY_RESULT_IDENTIFIER = 'run-inline:'
 
 export class ManagerEngine {
     private engine: Engine
@@ -520,7 +520,7 @@ export class ManagerEngine {
     }
 
     executeCodeInline(chosenResult: TelegramBot.ChosenInlineResult) {
-        if (!chosenResult.result_id.startsWith(INLINE_QUERY_RESULT_IDENTIFIER)) {
+        if (!chosenResult.result_id.startsWith(INLINE_RUN_QUERY_RESULT_IDENTIFIER)) {
             // not even a run request
             return
         }
@@ -528,7 +528,7 @@ export class ManagerEngine {
         const inlineMessageId = chosenResult.inline_message_id
 
         const code = chosenResult.query
-        const language = chosenResult.result_id.replace(INLINE_QUERY_RESULT_IDENTIFIER, '')
+        const language = chosenResult.result_id.replace(INLINE_RUN_QUERY_RESULT_IDENTIFIER, '')
 
 
         if (!this.runnerList.find(it => it.type === language)) {

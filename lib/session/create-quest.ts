@@ -33,6 +33,7 @@ export const sessionCreateQuest = async (
     }))
 
     const language = await ctx.options(msg.chat.id, "Select a language for the example program", runners)
+
     const exampleCode = await ctx.question(
         msg.chat.id,
         "Please enter the example code"
@@ -112,6 +113,9 @@ Example input:
 <pre>${encode(exampleInput.text ?? '')}</pre>
 Example output:
 <pre>${encode(exampleOutput.text ?? '')}</pre>
+Example Language: <code>${language}</code>
+Example Code:
+<pre>${encode(exampleCode.text ?? '')}</pre>
 ${mapInputs(samples)}Everything looks correct?`,
         [
             { text: "Create", value: "ok" as const},
