@@ -2,6 +2,7 @@ import type * as TelegramBot from "node-telegram-bot-api";
 import { managerEngine, repositoryQuest } from "../bot";
 import type { IRepositoryQuest, IRepositoryQuestDraft, Quest, QuestDraft } from "../interfaces";
 
+export const CREATE_QUEST_START_IDENTIFIER = 'create-quest'
 export const ANSWER_QUEST_START_IDENTIFIER = 'answer-quest'
 export const INLINE_QUEST_QUERY_RESULT_IDENTIFIER = 'select-quest:'
 

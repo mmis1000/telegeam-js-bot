@@ -13,7 +13,7 @@ import { INLINE_RUN_QUERY_RESULT_IDENTIFIER, ManagerEngine } from "./manager/eng
 import { ManagerSession } from "./manager/session";
 import { sessionPostCreateQuest } from "./session/post/create-quest";
 import { RepositoryQuestDraft } from "./repository/quest-draft";
-import { ANSWER_QUEST_START_IDENTIFIER, INLINE_QUEST_QUERY_RESULT_IDENTIFIER, ManagerQuest } from "./manager/quest";
+import { ANSWER_QUEST_START_IDENTIFIER, CREATE_QUEST_START_IDENTIFIER, INLINE_QUEST_QUERY_RESULT_IDENTIFIER, ManagerQuest } from "./manager/quest";
 import { RepositoryQuest } from "./repository/quest";
 import { sessionAnswerQuest } from "./session/answer-quest";
 import { sessionPostAnswerQuest } from "./session/post/answer-quest";
@@ -161,6 +161,10 @@ api.on('message', function(message) {
         if (content.startsWith(ANSWER_QUEST_START_IDENTIFIER + '_')) {
             const questId = content.replace(ANSWER_QUEST_START_IDENTIFIER + '_', '')
             managerSession.start('answer-quest', message, questId)
+        }
+
+        if (content.startsWith(CREATE_QUEST_START_IDENTIFIER)) {
+            managerSession.start('create-quest', message)
         }
     }
     
@@ -317,7 +321,9 @@ api.on('inline_query', async (message) => {
         const results = await managerQuest.createQuestList(message)
         api.answerInlineQuery(message.id, results, {
             cache_time: 0,
-            is_personal: true
+            is_personal: true,
+            switch_pm_text: 'Create a new quest',
+            switch_pm_parameter: CREATE_QUEST_START_IDENTIFIER
         }).catch(catchHandle)
         return
     }
