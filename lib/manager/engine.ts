@@ -717,7 +717,7 @@ export class ManagerEngine {
 
 
 
-    executeCodeHeadless (language: string, code: string, stdin: string = '') {
+    executeCodeHeadless (language: string, code: string, stdin: string = '', timeout: number = 10000) {
         if (!this.runnerList.find(it => it.type === language)) {
             return Promise.reject(new Error(`Unknown language: ${language}`))
         }
@@ -729,6 +729,7 @@ export class ManagerEngine {
             error: string
             log: string
             exit: EngineRunnerParsedExitData
+            timeout: boolean
         }
 
         return new Promise<Results>((resolve ,reject) => {
@@ -748,7 +749,17 @@ export class ManagerEngine {
                 stderr: '',
                 throw: '',
                 error: '',
-                log: ''
+                log: '',
+                timeout: false
+            }
+
+            let id: ReturnType<typeof setTimeout> | null = null
+
+            if (timeout > 0) {
+                id = setTimeout(() => {
+                    results.timeout = true
+                    runner.kill('SIGKILL')
+                }, timeout)
             }
     
             runner.on('stdout', (data) => results.stdout += data.text)
@@ -757,6 +768,10 @@ export class ManagerEngine {
             runner.on('error', (data) => results.error += data.text)
             runner.on('log', (data) => results.log += data.text)
             runner.on('exit', (data) => {
+                if (id != null) {
+                    clearTimeout(id)
+                }
+
                 try {
                     let res: EngineRunnerParsedExitData = JSON.parse(data.text);
                     resolve({

@@ -87,6 +87,15 @@ export class ManagerQuest {
         
         const exampleResult = await managerEngine.executeCodeHeadless(language, code, quest.exampleInput)
 
+        if (exampleResult.timeout) {
+            this.api.sendMessage(message.from!.id, `
+<b>Failed, the example program has timeouted.</b>
+`, {
+                reply_to_message_id: message.message_id,
+                parse_mode: 'HTML'
+            })
+            return
+        }
         if (!compareNormalized(exampleResult.stdout, quest.exampleOutput)) {
             this.api.sendMessage(message.from!.id, `
 <b>Failed, the example output didn\'t match.</b>
@@ -103,17 +112,24 @@ export class ManagerQuest {
             return
         }
 
-        const results: boolean[] = []
+        const results: ("OK" | "ERROR" | "TIMEOUT")[] = []
 
         for (const sample of quest.samples) {
             const sampleResult = await managerEngine.executeCodeHeadless(language, code, sample.input)
-            results.push(compareNormalized(sampleResult.stdout, sample.output))
+
+            if (sampleResult.timeout) {
+                results.push("TIMEOUT")
+            }
+
+            results.push(compareNormalized(sampleResult.stdout, sample.output) ? "OK" : "ERROR")
         }
 
-        if (results.some(it => !it)) {
+        if (results.some(it => it != "OK")) {
             this.api.sendMessage(message.from!.id, `
 <b>Failed, some samples didn\'t match.</b>
-${results.map((it, index) => 'Sample ' + (index + 1) + ': ' + (it ? 'Success' : 'Failed')).join('\n')}
+${results.map((it, index) => {
+    return 'Sample ' + (index + 1) + ': ' + (it === 'OK' ? 'Success' : it === 'ERROR' ? 'Failed' : 'Timeout')
+}).join('\n')}
 `, {
                 reply_to_message_id: message.message_id,
                 parse_mode: 'HTML'

@@ -22,6 +22,10 @@ export const sessionPostCreateQuest = async (
     const manager = managerEngine
     const runResult = await manager.executeCodeHeadless(result.language, result.exampleCode, result.exampleInput)
 
+    if (runResult.timeout) {
+        return abort(`Error: example failed the validate due to timeout`, api, message)
+    }
+
     if (!compareNormalized(runResult.stdout, result.exampleOutput)) {
         return abort(`Error: example failed the validate
 Expect:
@@ -33,6 +37,9 @@ ${runResult.stdout.trim()}`, api, message)
     for (const [k, v] of result.samples.entries()) {
         const runResult = await manager.executeCodeHeadless(result.language, result.exampleCode, v.input)
 
+        if (runResult.timeout) {
+            return abort(`Error: sample ${k + 1} failed the validate due to timeout`, api, message)
+        }
         if (!compareNormalized(runResult.stdout, v.output)) {
             return abort(`Error: sample ${k + 1} failed the validate
 Expect:
