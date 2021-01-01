@@ -1,14 +1,20 @@
 import type * as TelegramBot from "node-telegram-bot-api";
 import { managerQuest, repositoryQuest, runnerList } from "../bot";
 import { AbortError } from "../errors/AbortError";
-import type { SessionContext } from "../interfaces";
+import type { Quest, SessionContext } from "../interfaces";
 
 export const sessionAnswerQuest = async (
     ctx: SessionContext,
     msg: TelegramBot.Message,
     questId: string
-) => {   
-    const quest = await repositoryQuest.get(questId)
+) => {
+    let quest: Quest
+    try {
+        quest = await repositoryQuest.get(questId)
+    } catch (err) {
+        ctx.sendMessage(msg.chat.id, "Sorry, the quest no longer exists.")
+        throw new AbortError('quest not exist')
+    }
 
     if (quest.users.find(it => it.id === msg.from!.id)) {
         ctx.sendMessage(msg.chat.id, "Sorry, you have finished the quest.")

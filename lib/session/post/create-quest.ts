@@ -10,6 +10,7 @@ const compareNormalized = (str1: string, str2: string) => {
 const abort = (errorMsg: string, api: TelegramBot, message: TelegramBot.Message) => {
     api.sendMessage(message.chat.id, errorMsg, {
         reply_to_message_id: message.message_id,
+        disable_web_page_preview: true
     }).catch(catchHandle)
 }
 
@@ -23,8 +24,10 @@ export const sessionPostCreateQuest = async (
 
     if (!compareNormalized(runResult.stdout, result.exampleOutput)) {
         return abort(`Error: example failed the validate
-Expect: ${result.exampleOutput}
-Actually: ${runResult.stdout}`, api, message)
+Expect:
+${result.exampleOutput.trim()}
+Actually:
+${runResult.stdout.trim()}`, api, message)
     }
 
     for (const [k, v] of result.samples.entries()) {
@@ -32,8 +35,10 @@ Actually: ${runResult.stdout}`, api, message)
 
         if (!compareNormalized(runResult.stdout, v.output)) {
             return abort(`Error: sample ${k + 1} failed the validate
-Expect: ${v.output}
-Actually: ${runResult.stdout}`, api, message)
+Expect:
+${v.output.trim()}
+Actually:
+${runResult.stdout.trim()}`, api, message)
         }
     }
 

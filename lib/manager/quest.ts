@@ -29,9 +29,9 @@ export class ManagerQuest {
 <b>Description:</b>
 <pre>${escapeHtml(questDraft.description)}</pre>
 <b>Example Input:</b>
-<pre>${escapeHtml(questDraft.exampleInput)}</pre>
+<pre>${escapeHtml(questDraft.exampleInput.trim())}</pre>
 <b>Example Output:</b>
-<pre>${escapeHtml(questDraft.exampleOutput)}</pre>`
+<pre>${escapeHtml(questDraft.exampleOutput.trim())}</pre>`
     }
 
     async createQuestList (message: TelegramBot.InlineQuery): Promise<TelegramBot.InlineQueryResult[]> {
@@ -76,7 +76,13 @@ export class ManagerQuest {
     }
 
     async handleAnswer (questId: string, message: TelegramBot.Message ,language: string, code: string) {
-        const quest = await repositoryQuest.get(questId)
+        let quest
+        try {
+            quest = await repositoryQuest.get(questId)
+        } catch (err) {
+            await this.api.sendMessage(message.from!.id, 'Sorry, the quest no longer exists')
+            return
+        }
         
         const exampleResult = await managerEngine.executeCodeHeadless(language, code, quest.exampleInput)
 
@@ -84,11 +90,11 @@ export class ManagerQuest {
             this.api.sendMessage(message.from!.id, `
 <b>Failed, the example output didn\'t match.</b>
 <b>Input:</b>
-<pre>${escapeHtml(quest.exampleInput)}</pre>
+<pre>${escapeHtml(quest.exampleInput.trim())}</pre>
 <b>Expect:</b>
-<pre>${escapeHtml(quest.exampleOutput)}</pre>
+<pre>${escapeHtml(quest.exampleOutput.trim())}</pre>
 <b>Actual:</b>
-<pre>${escapeHtml(exampleResult.stdout)}</pre>
+<pre>${escapeHtml(exampleResult.stdout.trim())}</pre>
 `, {
                 reply_to_message_id: message.message_id,
                 parse_mode: 'HTML'
