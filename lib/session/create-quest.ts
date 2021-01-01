@@ -3,6 +3,10 @@ import { runnerList } from "../bot";
 import { AbortError } from "../errors/AbortError";
 import type { SessionContext } from "../interfaces";
 
+const normalize = (str: string) => {
+    const trimmed =  str.trim().replace(/\r\n/g, '\n')
+    return trimmed !== '' ? trimmed + '\n' : ''
+}
 export const sessionCreateQuest = async (
     ctx: SessionContext,
     msg: TelegramBot.Message
@@ -48,7 +52,12 @@ export const sessionCreateQuest = async (
 
     const exampleCode = await ctx.question(
         msg.chat.id,
-        "Please enter the example code"
+        `<b>Please enter the example code</b>
+Input will come from standard input.
+Outputs receives from standard output.`,
+        {
+            parse_mode: 'HTML'
+        }
     )
 
     const samples: {
@@ -74,8 +83,8 @@ export const sessionCreateQuest = async (
         )
 
         samples.push({
-            input: input.text ?? '',
-            output: output.text ?? ''
+            input: normalize(input.text ?? ''),
+            output: normalize(output.text ?? '')
         })
     } while (
         samples.length < 5 &&
@@ -114,9 +123,9 @@ export const sessionCreateQuest = async (
         let str = ''
         for (let [k, v] of items.entries()) {
             str += `<b>Input ${k + 1}:</b>\n`
-            str += `<pre>${encode(v.input)}</pre>\n`
+            str += `<pre>${encode(v.input.trim())}</pre>\n`
             str += `<b>Output ${k + 1}:</b>\n`
-            str += `<pre>${encode(v.output)}</pre>\n`
+            str += `<pre>${encode(v.output.trim())}</pre>\n`
         }
         return str
     }
@@ -146,14 +155,15 @@ ${mapInputs(samples)}<b>Everything looks correct?</b>`,
     )
 
     if (result !== 'ok') {
+        await ctx.sendMessage(msg.chat.id, "Cancelled")
         throw new AbortError('user cancelled')
     }
 
     return {
         title: title.text ?? '',
         description: description.text ?? '',
-        exampleInput: exampleInput.text ?? '',
-        exampleOutput: exampleOutput.text ?? '',
+        exampleInput: normalize(exampleInput.text ?? ''),
+        exampleOutput: normalize(exampleOutput.text ?? ''),
         language,
         exampleCode: exampleCode.text ?? '',
         samples
