@@ -113,7 +113,7 @@ export class ManagerQuest {
         if (results.some(it => !it)) {
             this.api.sendMessage(message.from!.id, `
 <b>Failed, some samples didn\'t match.</b>
-${results.map((it, index) => 'Sample ' + (index + 1) + ': ' + (it ? 'Success' : 'Failed') + '\n')}
+${results.map((it, index) => 'Sample ' + (index + 1) + ': ' + (it ? 'Success' : 'Failed')).join('\n')}
 `, {
                 reply_to_message_id: message.message_id,
                 parse_mode: 'HTML'
