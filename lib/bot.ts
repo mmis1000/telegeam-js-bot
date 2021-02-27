@@ -182,7 +182,7 @@ Currently supported: ${runnerList.map(function (i) {return i.type}).join(', ')}
         `, additionOptions).catch(catchHandle);
     }
 
-    if (message.text != undefined && message.text.match(/\/test(@[^\s]+)?$/)) {
+    if (message.text != undefined && message.text.match(/\/test(@[^\s]+)?$/) && message.chat.type === 'private') {
         managerSession.start('test', message)
     }
 
