@@ -101,7 +101,7 @@ fs.readdir('./docker_image/test', async function (err, files) {
         await managerSession.load()
 
         // Initialize quests
-        managerQuest = new ManagerQuest(api, data, repositoryQuest)
+        managerQuest = new ManagerQuest(api, repositoryQuest)
             
         api.setMyCommands(commands).catch(catchHandle).then(() => {
             console.log(`Bot is ready - available commands: ${commands.length}`)

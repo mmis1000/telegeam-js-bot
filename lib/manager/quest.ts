@@ -26,7 +26,6 @@ function escapeHtml(unsafe: string) {
 export class ManagerQuest {
     constructor (
         private api: TelegramBot,
-        private self: TelegramBot.User,
         private questRepo: IRepositoryQuest,
     ) {}
 
@@ -195,10 +194,16 @@ You passed the quest
                     parse_mode: 'HTML',
                     disable_web_page_preview: true,
                     reply_markup: {
-                        inline_keyboard: [[{
-                            text: 'Answer the quest',
-                            url: `https://t.me/${this.self.username!}?start=${ANSWER_QUEST_START_IDENTIFIER}_${quest.id}`
-                        }]]
+                        inline_keyboard: [
+                            [{
+                                text: 'Answer the quest',
+                                callback_data: CALLBACK_QUERY_ANSWER_START_IDENTIFIER + ':' + quest.id
+                            }],
+                            [{
+                                text: 'Share the quest',
+                                switch_inline_query: INLINE_QUERY_SHARE_START_IDENTIFIER + ':' + quest.id
+                            }]
+                        ]
                     }
                 })
                 await sleep(1000)
