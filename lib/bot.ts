@@ -60,17 +60,19 @@ fs.readdir('./docker_image/test', async function (err, files) {
     .map(function (name) {
         return require(path.resolve('./docker_image/test', name));
     })
+
+    const commands: TelegramBot.BotCommand[] = []
     
     runnerList.forEach(function (data) {
-        console.log(data.type + ' - run ' + data.type + ' snippet');
-        console.log(data.type + '_debug - run ' + data.type + ' snippet with debug output');
-        console.log(data.type + '_hello - run ' + data.type + '\'s Hello, World! program.');
-        console.log(data.type + '_interactive - run ' + data.type + ' in interactive mode');
+        commands.push({ command: data.type, description: 'run ' + data.type + ' snippet' })
+        commands.push({ command: data.type + '_debug', description: 'run ' + data.type + ' snippet with debug output' })
+        commands.push({ command: data.type + '_hello', description: 'run ' + data.type + '\'s Hello, World! program.' })
+        commands.push({ command: data.type + '_interactive', description: 'run ' + data.type + ' in interactive mode' })
     })
     
-    console.log('pastebin - run code snippet from pastebin');
-    console.log('pastebin_debug - run code snippet from pastebin with debug output');
-    console.log('pastebin_interactive - run code snippet from pastebin in interactive mode');
+    commands.push({ command: 'pastebin', description: 'run code snippet from pastebin' })
+    commands.push({ command: 'pastebin_debug', description: 'run code snippet from pastebin with debug output' })
+    commands.push({ command: 'pastebin_interactive', description: 'run code snippet from pastebin in interactive mode' })
 
     try {
         const data = await api.getMe()
@@ -100,10 +102,11 @@ fs.readdir('./docker_image/test', async function (err, files) {
 
         // Initialize quests
         managerQuest = new ManagerQuest(api, data, repositoryQuest)
-
-        api.startPolling();
-
-
+            
+        api.setMyCommands(commands).catch(catchHandle).then(() => {
+            console.log(`Bot is ready - available commands: ${commands.length}`)
+            api.startPolling();
+        })
     } catch (err) {
         console.error(err);
         process.exit(1);
