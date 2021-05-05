@@ -138,7 +138,7 @@ export class BaseRepository<T extends { id: string }> implements IRepository<T> 
         return this.execute(session.id, 'set', async () => {
             const fullPath = path.resolve(this.directory, session.id + '.json')
             return await fs.writeFile(fullPath, serialized)
-        }, ['get'])
+        }, ['get', 'delete'])
     }
 
     update(id: string, reducer: (old: T) => T): Promise<void> {

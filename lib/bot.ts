@@ -5,15 +5,14 @@ import config = require("../config");
 import request = require('request');
 
 import * as TelegramBot from 'node-telegram-bot-api';
-import type { IRepositoryQuest, IRepositoryQuestDraft, IRepositorySession } from "./interfaces";
+import type { IRepositoryQuest, IRepositorySession } from "./interfaces";
 import { sessionTest } from "./session/test";
 import { RepositorySession } from "./repository/session";
 import { sessionCreateQuest } from "./session/create-quest";
 import { INLINE_RUN_QUERY_RESULT_IDENTIFIER, ManagerEngine } from "./manager/engine";
 import { ManagerSession } from "./manager/session";
 import { sessionPostCreateQuest } from "./session/post/create-quest";
-import { RepositoryQuestDraft } from "./repository/quest-draft";
-import { ANSWER_QUEST_START_IDENTIFIER, CREATE_QUEST_START_IDENTIFIER, INLINE_QUEST_QUERY_RESULT_IDENTIFIER, ManagerQuest } from "./manager/quest";
+import { ANSWER_QUEST_START_IDENTIFIER, CREATE_QUEST_START_IDENTIFIER, CALLBACK_QUERY_ANSWER_START_IDENTIFIER, INLINE_QUEST_QUERY_RESULT_IDENTIFIER, ManagerQuest, INLINE_QUERY_SHARE_START_IDENTIFIER } from "./manager/quest";
 import { RepositoryQuest } from "./repository/quest";
 import { sessionAnswerQuest } from "./session/answer-quest";
 import { sessionPostAnswerQuest } from "./session/post/answer-quest";
@@ -41,7 +40,7 @@ setInterval(function () {
 }, coolDown)
 
 export const repositorySession: IRepositorySession = new RepositorySession(path.resolve(__dirname, '../', config.saves.sessions))
-export const repositoryQuestDraft: IRepositoryQuestDraft = new RepositoryQuestDraft(path.resolve(__dirname, '../', config.saves.questDrafts))
+// export const repositoryQuestDraft: IRepositoryQuestDraft = new RepositoryQuestDraft(path.resolve(__dirname, '../', config.saves.questDrafts))
 export const repositoryQuest: IRepositoryQuest = new RepositoryQuest(path.resolve(__dirname, '../', config.saves.quests))
 
 export let managerEngine: ManagerEngine
@@ -100,7 +99,7 @@ fs.readdir('./docker_image/test', async function (err, files) {
         await managerSession.load()
 
         // Initialize quests
-        managerQuest = new ManagerQuest(api, data, repositoryQuestDraft, repositoryQuest)
+        managerQuest = new ManagerQuest(api, data, repositoryQuest)
 
         api.startPolling();
 
@@ -328,6 +327,16 @@ api.on('inline_query', async (message) => {
         return
     }
 
+    if (message.query.startsWith(INLINE_QUERY_SHARE_START_IDENTIFIER + ':')) {
+        const id = message.query.replace(INLINE_QUERY_SHARE_START_IDENTIFIER + ':', '')
+        const results = await managerQuest.createQuestListFromId(id)
+        api.answerInlineQuery(message.id, results, {
+            cache_time: 0,
+            is_personal: true
+        }).catch(catchHandle)
+        return
+    }
+
     const results: TelegramBot.InlineQueryResultArticle[] = []
 
     for (let runner of runnerList) {
@@ -362,6 +371,20 @@ api.on('chosen_inline_result', result => {
 
     if (result.result_id && result.result_id.startsWith(INLINE_QUEST_QUERY_RESULT_IDENTIFIER)) {
         managerQuest.handleChosenInlineResult(result)
+    }
+})
+
+api.on('callback_query', (message) => {
+    if (
+        message.data?.startsWith(CALLBACK_QUERY_ANSWER_START_IDENTIFIER + ':')
+    ) {
+        const queryId = message.data?.replace(CALLBACK_QUERY_ANSWER_START_IDENTIFIER + ':', '')
+        
+        api.answerCallbackQuery(message.id, {
+            url: `https://t.me/${botInfo!.username!}?start=${ANSWER_QUEST_START_IDENTIFIER}_${queryId}`
+        })
+
+        return
     }
 })
 

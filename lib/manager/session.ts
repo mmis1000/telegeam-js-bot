@@ -72,13 +72,19 @@ export class ManagerSession {
             return console.error(`Unknown handler type ${type}`)
         }
 
+        let ended = false
+
         try {
             const res = await (runContinuable(
                 handler.run,
                 createStaticContext(this.api),
                 createContinuableContext(this.api),
                 null,
-                (s) => this.sessionRepo.set({ id: sessionId, state: s, type: type, args: [message, ...args] }),
+                (s) => {
+                    if (!ended) {
+                        this.sessionRepo.set({ id: sessionId, state: s, type: type, args: [message, ...args] })
+                    }
+                },
                 message,
                 ...args
             ) as any)
@@ -87,7 +93,11 @@ export class ManagerSession {
         } catch (err) {
             await handler.error(message, err, this.api)
         } finally {
-            await this.sessionRepo.delete(sessionId).catch(catchHandle)
+            ended = true
+            // This can actually fail because it can happen before the first time it was wrote
+            try {
+                await this.sessionRepo.delete(sessionId)
+            } catch (err) {}
         }
     }
 

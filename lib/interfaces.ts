@@ -153,7 +153,7 @@ export type Await<T> = T extends {
     then(onfulfilled?: (value: infer U) => unknown): unknown;
 } ? U : T;
 
-export type QuestSpec = {
+type QuestSpec = {
     title: string,
     description: string,
     exampleInput: string,
@@ -166,15 +166,15 @@ export type QuestSpec = {
     }[]
 }
 
-export type QuestDraft = QuestSpec & {
+type QuestDraft = QuestSpec & {
     id: string
     author: number
 }
 
 export type Quest = QuestDraft & {
     users: TelegramBot.User[],
-    message_id: NonNullable<TelegramBot.ChosenInlineResult['inline_message_id']>
+    message_id: Array<NonNullable<TelegramBot.ChosenInlineResult['inline_message_id']>>
 }
 
-export interface IRepositoryQuestDraft extends IRepository<QuestDraft> {}
+
 export interface IRepositoryQuest extends IRepository<Quest> {}

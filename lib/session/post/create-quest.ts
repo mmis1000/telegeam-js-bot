@@ -1,5 +1,5 @@
 import type * as TelegramBot from "node-telegram-bot-api";
-import { catchHandle, managerEngine, repositoryQuestDraft } from "../../bot";
+import { catchHandle, managerEngine, repositoryQuest } from "../../bot";
 import type { Await } from "../../interfaces";
 import type { sessionCreateQuest } from "../create-quest";
 
@@ -51,9 +51,11 @@ ${runResult.stdout.trim()}`, api, message)
 
     const questId = Math.random().toString(16).slice(2);
 
-    await repositoryQuestDraft.set({
+    await repositoryQuest.set({
         ...result,
         id: questId,
+        message_id: [],
+        users: [],
         author: message.from!.id
     })
 
