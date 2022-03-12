@@ -118,8 +118,12 @@ export class BaseRepository<T extends { id: string }> implements IRepository<T> 
                     continue
                 }
 
-                const session: T = TSON.parse(await fs.readFile(fullPath, { encoding: 'utf-8' }))
-                results.push(session)
+                try {
+                    const session: T = TSON.parse(await fs.readFile(fullPath, { encoding: 'utf-8' }))
+                    results.push(session)
+                } catch (err) {
+                    console.warn(`bad json ${filename}`)
+                }
             }
             return results
         })
