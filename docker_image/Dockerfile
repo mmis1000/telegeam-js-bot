@@ -1,7 +1,7 @@
 # FROM ubuntu
 FROM debian:buster
 
-ARG APT_MIRROR='opensource.nchc.org.tw'
+ARG APT_MIRROR='http://cloudflaremirrors.com/debian'
 
 # Username
 ENV USER_NAME debian
@@ -11,8 +11,8 @@ ENV NVM_DIR /home/$USER_NAME/.nvm
 ENV NODE_VERSION 14.15.1
 ENV KOTLIN_VERSION=1.4.20
 
-RUN sed --in-place "s/httpredir.debian.org/$APT_MIRROR/g" /etc/apt/sources.list \
-    && sed --in-place "s/deb.debian.org/$APT_MIRROR/g" /etc/apt/sources.list
+RUN sed --in-place "s#http://httpredir.debian.org/debian #$APT_MIRROR #g" /etc/apt/sources.list \
+    && sed --in-place "s#http://deb.debian.org/debian #$APT_MIRROR #g" /etc/apt/sources.list
 
 # install eatmydata
 RUN apt-get update -y \
